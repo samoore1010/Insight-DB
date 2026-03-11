@@ -329,8 +329,29 @@
   .print-report-wrapper * {
     overflow: visible !important;
     max-height: none !important;
-    height: auto !important;
     flex-shrink: 0 !important;
+  }
+
+  /* Cover page: fill one page, then break to next page. */
+  .print-report-wrapper .cover-page {
+    height: auto !important;
+    min-height: 0 !important;
+    break-after: page !important;
+    page-break-after: always !important;
+    break-inside: avoid !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    padding: 1cm 0 !important;
+    margin: 0 !important;
+  }
+  /* Kill the space-y gap after cover page so it doesn't create a blank page.
+     Also zero out the top margin on all immediate children of the space-y wrapper
+     that follow the cover-page, since Tailwind's space-y adds margin-top to siblings. */
+  .print-report-wrapper .cover-page + *,
+  .print-report-wrapper .cover-page ~ .report-section:first-of-type {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
   }
 
   /* Also handle the modal if it's open (it's a direct child of body) */
@@ -358,15 +379,7 @@
     margin-top: 0 !important;
   }
 
-  .cover-page {
-    min-height: 0 !important;
-    height: 25cm !important;
-    page-break-after: always !important;
-    break-after: page !important;
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: space-between !important;
-  }
+  /* cover-page print rules are defined above with the print-wrapper specificity */
 
   .report-section {
     break-inside: avoid-page !important;
