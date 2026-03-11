@@ -196,9 +196,9 @@ function ReportContent({
             )}
             {/* Executive Summary */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-10">
-              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                 <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Total Available Liquidity</p>
-                <p className="text-3xl font-black text-slate-900 dark:text-white">
+                <p className="text-2xl font-black text-slate-900 dark:text-white whitespace-nowrap">
                   {formatCurrency(allData?.[activeRegion][0]?.endingBalance || 0)}
                 </p>
                 <div className="mt-2 flex items-center gap-1">
@@ -206,10 +206,10 @@ function ReportContent({
                   <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Verified Balance</span>
                 </div>
               </div>
-              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                 <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">14-Day Projected Net Flow</p>
                 <p className={clsx(
-                  "text-3xl font-black",
+                  "text-2xl font-black whitespace-nowrap",
                   (allData?.[activeRegion].slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                 )}>
                   {formatCurrency(allData?.[activeRegion].slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0)}
@@ -218,7 +218,7 @@ function ReportContent({
                   <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Forecasted Trend</span>
                 </div>
               </div>
-              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                 <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Treasury Health Status</p>
                 <div className="flex items-center gap-3 mt-1">
                   {metrics?.isHealthy ? (
@@ -253,16 +253,16 @@ function ReportContent({
             
             {isComprehensive && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-8">
-                <div className="p-4 sm:p-6 bg-slate-900 text-white rounded-2xl">
+                <div className="p-4 sm:p-6 bg-slate-900 text-white rounded-2xl overflow-hidden">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Projected Month-End Balance</p>
-                  <p className="text-3xl font-black text-white">
+                  <p className="text-3xl font-black text-white whitespace-nowrap">
                     {formatCurrency(allData?.[activeRegion][29]?.endingBalance || 0)}
                   </p>
                 </div>
-                <div className="p-4 sm:p-6 bg-slate-900 text-white rounded-2xl">
+                <div className="p-4 sm:p-6 bg-slate-900 text-white rounded-2xl overflow-hidden">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Total Monthly Net Flow</p>
                   <p className={clsx(
-                    "text-3xl font-black",
+                    "text-3xl font-black whitespace-nowrap",
                     (allData?.[activeRegion].slice(0, 30).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0) >= 0 ? "text-emerald-400" : "text-rose-400"
                   )}>
                     {formatCurrency(allData?.[activeRegion].slice(0, 30).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0)}

@@ -386,7 +386,7 @@ export default function ChangeHistory({ currentEntity, onDataReverted }: Props) 
 function formatDiffValue(field: string, value: any): string {
   if (value === null || value === undefined) return "—";
   if (field === "amount" || field === "baseAmount" || field === "base_amount") {
-    return `$${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `$${Math.round(Number(value)).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   }
   if (field === "adjustment") {
     return `${(Number(value) * 100).toFixed(0)}%`;
