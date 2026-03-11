@@ -425,13 +425,13 @@ export default function CashCalendar({
               </div>
             </div>
 
-            <div className="flex items-center gap-6">
-              <button 
+            <div className="flex flex-wrap items-center gap-3 sm:gap-6">
+              <button
                 onClick={handleSuggestFixes}
                 disabled={optimizing}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                  optimizing 
-                    ? "bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed" 
+                className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  optimizing
+                    ? "bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed"
                     : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm hover:shadow-md"
                 }`}
               >
@@ -450,9 +450,9 @@ export default function CashCalendar({
                       setTimeframe(tf);
                       setIsCustomRange(false);
                     }}
-                    className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${
+                    className={`px-2 sm:px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${
                       timeframe === tf && !isCustomRange
-                        ? "bg-white dark:bg-slate-700 text-emerald-600 shadow-sm" 
+                        ? "bg-white dark:bg-slate-700 text-emerald-600 shadow-sm"
                         : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                     }`}
                   >
@@ -460,7 +460,7 @@ export default function CashCalendar({
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-wider">
+              <div className="hidden sm:flex items-center gap-4 text-[10px] font-bold uppercase tracking-wider">
                 <div className="flex items-center gap-1.5 text-emerald-600">
                   <div className="w-2 h-2 rounded-full bg-emerald-500" />
                   Inflow
@@ -479,31 +479,31 @@ export default function CashCalendar({
 
           {summary && (
             <div className="p-4 bg-slate-900 dark:bg-slate-900/50 rounded-2xl text-white shadow-lg border border-slate-800 dark:border-slate-800/50 flex flex-col gap-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-emerald-500/10 rounded-lg flex items-center justify-center">
+                  <div className="w-8 h-8 bg-emerald-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
                     <Calculator className="w-4 h-4 text-emerald-400" />
                   </div>
                   <div>
                     <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 block">Balance Summary</span>
-                    <span className="text-[8px] text-slate-500 dark:text-slate-600">{isCustomRange ? "Today → Selected" : timeframe}</span>
+                    <span className="text-[8px] text-slate-500 dark:text-slate-600">{isCustomRange ? "Today \u2192 Selected" : timeframe}</span>
                   </div>
                 </div>
-                
-                <div className="flex items-center gap-8">
-                  <div className="flex flex-col items-end">
+
+                <div className="flex items-center gap-4 sm:gap-8 overflow-x-auto">
+                  <div className="flex flex-col items-end min-w-0">
                     <span className="text-[9px] text-slate-500 uppercase tracking-tight">Starting</span>
-                    <span className="text-sm font-mono font-bold">{formatCurrency(summary.startBalance, false)}</span>
+                    <span className="text-xs sm:text-sm font-mono font-bold whitespace-nowrap">{formatCurrency(summary.startBalance, false)}</span>
                   </div>
-                  <div className="text-slate-700 font-bold">-</div>
-                  <div className="flex flex-col items-end">
+                  <div className="text-slate-700 font-bold flex-shrink-0">-</div>
+                  <div className="flex flex-col items-end min-w-0">
                     <span className="text-[9px] text-slate-500 uppercase tracking-tight">Outflows</span>
-                    <span className="text-sm font-mono font-bold text-rose-400">{formatCurrency(summary.totalOutflows, false)}</span>
+                    <span className="text-xs sm:text-sm font-mono font-bold text-rose-400 whitespace-nowrap">{formatCurrency(summary.totalOutflows, false)}</span>
                   </div>
-                  <div className="text-slate-700 font-bold">=</div>
-                  <div className="flex flex-col items-end">
+                  <div className="text-slate-700 font-bold flex-shrink-0">=</div>
+                  <div className="flex flex-col items-end min-w-0">
                     <span className="text-[9px] text-slate-500 uppercase tracking-tight">Current</span>
-                    <span className={`text-sm font-mono font-bold ${summary.endBalance >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                    <span className={`text-xs sm:text-sm font-mono font-bold whitespace-nowrap ${summary.endBalance >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                       {formatCurrency(summary.endBalance, false)}
                     </span>
                   </div>

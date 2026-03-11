@@ -11,8 +11,8 @@ import CashCalendar from "./components/CashCalendar";
 import ReportsView from "./components/ReportsView";
 import MaximizeWrapper from "./components/MaximizeWrapper";
 import SettingsView from "./components/SettingsView";
-import { LayoutDashboard, Building2, FileText, Settings, Bell, Search, Users, MapPin, Globe, Earth, Car, Building, Landmark, Play, Pause, RotateCcw } from "lucide-react";
-import { motion } from "motion/react";
+import { LayoutDashboard, Building2, FileText, Settings, Bell, Search, Users, MapPin, Globe, Earth, Car, Building, Landmark, Play, Pause, RotateCcw, Menu, X } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 
 const BANK_HOLIDAYS_2026 = [
   "2026-01-01", // New Year's Day
@@ -38,6 +38,7 @@ export default function App() {
   const [multiEntityData, setMultiEntityData] = useState<Record<Entity, DailyData[]> | null>(null);
   const [currentEntity, setCurrentEntity] = useState<Entity>("Executive");
   const [activeView, setActiveView] = useState<"dashboard" | "reports" | "settings">("dashboard");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [forecastDays, setForecastDays] = useState(14);
   const [isSimulationMode, setIsSimulationMode] = useState(false);
   const [simulationOverrides, setSimulationOverrides] = useState<Record<Exclude<Entity, "Executive">, Record<string, Partial<DailyData>>>>({
@@ -847,66 +848,162 @@ export default function App() {
         </div>
       </aside>
 
+      {/* Mobile Nav Drawer */}
+      <AnimatePresence>
+        {mobileNavOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
+              onClick={() => setMobileNavOpen(false)}
+            />
+            <motion.aside
+              initial={{ x: -280 }}
+              animate={{ x: 0 }}
+              exit={{ x: -280 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="fixed left-0 top-0 bottom-0 w-72 bg-slate-900 dark:bg-slate-950 text-slate-300 flex flex-col z-50 lg:hidden shadow-2xl overflow-y-auto"
+            >
+              <div className="p-6 flex items-center justify-between border-b border-slate-800 dark:border-slate-800/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+                    <Building2 className="text-white w-5 h-5" />
+                  </div>
+                  <span className="font-bold text-white tracking-tight">Insight Treasury</span>
+                </div>
+                <button onClick={() => setMobileNavOpen(false)} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <nav className="flex-1 p-4 space-y-1">
+                <div className="px-4 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Dashboards</div>
+                {navigation.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setCurrentEntity(item.id as Entity);
+                      setActiveView("dashboard");
+                      setMobileNavOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${
+                      activeView === "dashboard" && currentEntity === item.id
+                        ? "bg-emerald-500/10 text-emerald-400"
+                        : "text-slate-400 hover:bg-slate-800 dark:hover:bg-slate-900 hover:text-white"
+                    }`}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    {item.label}
+                  </button>
+                ))}
+
+                <div className="pt-6 px-4 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">System</div>
+                <button
+                  onClick={() => { setActiveView("reports"); setMobileNavOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${
+                    activeView === "reports"
+                      ? "bg-emerald-500/10 text-emerald-400"
+                      : "text-slate-400 hover:bg-slate-800 dark:hover:bg-slate-900 hover:text-white"
+                  }`}
+                >
+                  <FileText className="w-5 h-5" />
+                  Reports
+                </button>
+                <a href="#" className="flex items-center gap-3 px-4 py-3 hover:bg-slate-800 dark:hover:bg-slate-900 hover:text-white rounded-xl transition-colors">
+                  <Bell className="w-5 h-5" />
+                  Alerts
+                </a>
+              </nav>
+
+              <div className="p-4 border-t border-slate-800 dark:border-slate-800/50">
+                <button
+                  onClick={() => { setActiveView("settings"); setMobileNavOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${
+                    activeView === "settings"
+                      ? "bg-emerald-500/10 text-emerald-400"
+                      : "text-slate-400 hover:bg-slate-800 dark:hover:bg-slate-900 hover:text-white"
+                  }`}
+                >
+                  <Settings className="w-5 h-5" />
+                  Settings
+                </button>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header - Frozen at the top */}
-        <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 h-16 flex items-center justify-between px-4 flex-shrink-0 z-10">
-          <div className="flex items-center gap-4 flex-1">
-            <div className="relative w-full max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input 
-                type="text" 
-                placeholder="Search transactions, reports..." 
-                className="w-full pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white dark:placeholder:text-slate-500"
-              />
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-              <button 
-                onClick={() => setIsSimulationMode(!isSimulationMode)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  isSimulationMode 
-                    ? "bg-amber-500 text-white shadow-md" 
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-white dark:hover:bg-slate-700"
-                }`}
+        <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex-shrink-0 z-10">
+          {/* Top row: hamburger, search, avatar */}
+          <div className="h-16 flex items-center justify-between px-4 gap-3">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <button
+                onClick={() => setMobileNavOpen(true)}
+                className="lg:hidden p-2 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all flex-shrink-0"
               >
-                {isSimulationMode ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                {isSimulationMode ? "Simulation Active" : "Start Simulation"}
+                <Menu className="w-5 h-5" />
               </button>
-              {isSimulationMode && (
-                <button 
-                  onClick={() => setSimulationOverrides({
-                    "Flint": {}, "ISH": {}, "Coldwater": {}, "Chicago": {}
-                  })}
-                  className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all"
-                  title="Reset Simulation"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Forecast Window:</span>
-              <select 
-                value={forecastDays}
-                onChange={(e) => setForecastDays(parseInt(e.target.value))}
-                className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-1.5 rounded-lg border-none focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer"
-              >
-                {[14, 30, 60, 90, 180, 365].map(days => (
-                  <option key={days} value={days}>{days} Days</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <div className="flex flex-col items-end">
-                <span className="text-sm font-semibold text-slate-900 dark:text-white">Treasury Manager</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400">{currentEntity} Operations</span>
+              <div className="relative w-full max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search transactions, reports..."
+                  className="w-full pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white dark:placeholder:text-slate-500"
+                />
               </div>
-              <div className="w-10 h-10 bg-slate-200 dark:bg-slate-800 rounded-full border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden flex items-center justify-center">
+            </div>
+
+            <div className="flex items-center gap-3 md:gap-6 flex-shrink-0">
+              <div className="hidden md:flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                <button
+                  onClick={() => setIsSimulationMode(!isSimulationMode)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    isSimulationMode
+                      ? "bg-amber-500 text-white shadow-md"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-white dark:hover:bg-slate-700"
+                  }`}
+                >
+                  {isSimulationMode ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                  {isSimulationMode ? "Simulation Active" : "Start Simulation"}
+                </button>
+                {isSimulationMode && (
+                  <button
+                    onClick={() => setSimulationOverrides({
+                      "Flint": {}, "ISH": {}, "Coldwater": {}, "Chicago": {}
+                    })}
+                    className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all"
+                    title="Reset Simulation"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
+              <div className="hidden md:flex items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Forecast:</span>
+                <select
+                  value={forecastDays}
+                  onChange={(e) => setForecastDays(parseInt(e.target.value))}
+                  className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-1.5 rounded-lg border-none focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer"
+                >
+                  {[14, 30, 60, 90, 180, 365].map(days => (
+                    <option key={days} value={days}>{days} Days</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="hidden lg:flex items-center gap-4">
+                <div className="flex flex-col items-end">
+                  <span className="text-sm font-semibold text-slate-900 dark:text-white">Treasury Manager</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">{currentEntity} Operations</span>
+                </div>
+              </div>
+              <div className="w-10 h-10 bg-slate-200 dark:bg-slate-800 rounded-full border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden flex items-center justify-center flex-shrink-0">
                 {companyLogo ? (
                   <img src={companyLogo} alt="Company Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                 ) : (
@@ -916,6 +1013,46 @@ export default function App() {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Mobile-only secondary controls bar */}
+          <div className="md:hidden flex items-center justify-between px-4 py-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+              <button
+                onClick={() => setIsSimulationMode(!isSimulationMode)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[10px] font-bold transition-all ${
+                  isSimulationMode
+                    ? "bg-amber-500 text-white shadow-md"
+                    : "text-slate-500 dark:text-slate-400"
+                }`}
+              >
+                {isSimulationMode ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                {isSimulationMode ? "Sim On" : "Simulate"}
+              </button>
+              {isSimulationMode && (
+                <button
+                  onClick={() => setSimulationOverrides({
+                    "Flint": {}, "ISH": {}, "Coldwater": {}, "Chicago": {}
+                  })}
+                  className="p-1 text-slate-400 hover:text-rose-500 rounded transition-all"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Forecast:</span>
+              <select
+                value={forecastDays}
+                onChange={(e) => setForecastDays(parseInt(e.target.value))}
+                className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-md border-none outline-none cursor-pointer"
+              >
+                {[14, 30, 60, 90, 180, 365].map(days => (
+                  <option key={days} value={days}>{days}d</option>
+                ))}
+              </select>
+            </div>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{currentEntity}</span>
           </div>
         </header>
 

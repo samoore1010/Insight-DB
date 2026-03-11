@@ -45,7 +45,7 @@ export default function LiquidityChart({
 
   const formatCurrency = (val: number) => centralizedFormatCurrency(val, currency, true);
 
-  const chartHeight = isMaximized ? "h-[600px]" : "h-[450px]";
+  const chartHeight = isMaximized ? "h-[600px]" : "h-[300px] sm:h-[450px]";
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -93,11 +93,11 @@ export default function LiquidityChart({
 
   return (
     <div className="space-y-6 mb-8">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Cash Flow Dynamics</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">Cash Flow Dynamics</h2>
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-            <button 
+            <button
               onClick={() => onForecastDaysChange?.(14)}
               className={clsx(
                 "px-3 py-1 text-xs font-bold rounded-md transition-all",
@@ -106,7 +106,7 @@ export default function LiquidityChart({
             >
               14 Days
             </button>
-            <button 
+            <button
               onClick={() => onForecastDaysChange?.(91)}
               className={clsx(
                 "px-3 py-1 text-xs font-bold rounded-md transition-all",
