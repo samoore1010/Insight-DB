@@ -706,34 +706,48 @@ export default function ReportsView({
     cloned.style.border = 'none';
     cloned.style.borderRadius = '0';
 
-    // Fix blank page issue: instead of page-break-after on cover page,
-    // use page-break-before on the first section AFTER the cover page.
-    // This is the standard fix — break-after creates a trailing blank page
-    // in many browsers, while break-before on the next element does not.
-    // Remove all .page-break divs — they are empty divs with
-    // page-break-before:always that create blank pages when combined
-    // with any other break mechanism. The cover page had one inside it
-    // at the bottom (line 162 of ReportContent) which was the source
-    // of the persistent blank page 2.
+    // Remove all .page-break divs — empty divs with page-break-before:always
+    // that create blank pages (cover page has one at line 162 of ReportContent)
     cloned.querySelectorAll('.page-break').forEach(el => el.remove());
+
+    // Remove ALL break/page-break properties from every element first
+    // to start with a completely clean slate
+    cloned.querySelectorAll('*').forEach(el => {
+      const s = (el as HTMLElement).style;
+      s.pageBreakBefore = '';
+      s.pageBreakAfter = '';
+      s.breakBefore = '';
+      s.breakAfter = '';
+      s.pageBreakInside = '';
+      s.breakInside = '';
+    });
+
+    // Also strip report-section class from ALL elements so the print CSS
+    // rule (.report-section { break-inside:avoid-page; margin-bottom:2cm })
+    // doesn't interfere at all
+    cloned.querySelectorAll('.report-section').forEach(el => {
+      el.classList.remove('report-section');
+    });
 
     const coverPage = cloned.querySelector('.cover-page') as HTMLElement | null;
     if (coverPage) {
-      // Let the cover page use break-after to push content to next page
-      coverPage.style.pageBreakAfter = 'always';
-      coverPage.style.breakAfter = 'page';
-      // Remove report-section class to avoid the !important margin-bottom: 2cm
-      coverPage.classList.remove('report-section');
       coverPage.style.marginBottom = '0';
+      coverPage.style.paddingBottom = '0';
 
       // Strip space-y so siblings have no auto margins
       const parent = coverPage.parentElement;
       if (parent) {
         parent.className = parent.className.replace(/space-y-\S+/g, '');
-        const nextSection = coverPage.nextElementSibling as HTMLElement | null;
-        if (nextSection) {
-          nextSection.style.marginTop = '0';
-        }
+      }
+
+      // The ONLY page break: break-before on the first section AFTER the cover.
+      // NEVER use break-after on the cover — it causes a trailing blank page.
+      const nextSection = coverPage.nextElementSibling as HTMLElement | null;
+      if (nextSection) {
+        nextSection.style.pageBreakBefore = 'always';
+        nextSection.style.breakBefore = 'page';
+        nextSection.style.marginTop = '0';
+        nextSection.style.paddingTop = '0';
       }
     }
 
