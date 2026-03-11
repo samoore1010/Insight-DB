@@ -699,124 +699,92 @@ export default function ReportsView({
 
     setIsGeneratingPDF(true);
     try {
-      // Small delay to ensure DOM is settled
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
 
-      const isDarkMode = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      // Properties to inline from computed styles — covers all visual presentation
+      const styleProps = [
+        'color', 'background-color', 'background-image', 'background',
+        'border-color', 'border-top-color', 'border-bottom-color', 'border-left-color', 'border-right-color',
+        'border-width', 'border-top-width', 'border-bottom-width', 'border-left-width', 'border-right-width',
+        'border-style', 'border-radius',
+        'font-size', 'font-weight', 'font-family', 'font-style', 'line-height', 'letter-spacing', 'text-transform',
+        'text-align', 'text-decoration', 'white-space', 'word-break', 'overflow-wrap',
+        'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+        'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+        'display', 'flex-direction', 'justify-content', 'align-items', 'flex-wrap', 'flex-grow', 'flex-shrink',
+        'gap', 'row-gap', 'column-gap',
+        'grid-template-columns', 'grid-column',
+        'width', 'max-width', 'min-width', 'height', 'min-height', 'max-height',
+        'box-shadow', 'opacity', 'overflow', 'position', 'top', 'right', 'bottom', 'left',
+        'vertical-align', 'text-indent',
+      ];
 
-      // Fresh regex for each usage - avoids lastIndex bug with global flag
-      const makeModernCssRegex = () => /(oklch|oklab|color-mix|light-dark|lab|lch|hwb|color)\s*\((?:[^()]+|\((?:[^()]+|\([^()]*\))*\))*\)/gi;
-
-      // Capture the entire element as one piece for better fidelity
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         logging: false,
-        backgroundColor: isDarkMode ? '#020617' : '#ffffff',
-        width: 800, // Force a desktop-like width for consistent rendering
-        windowWidth: 1200, // Simulate desktop viewport so responsive classes expand
+        backgroundColor: '#ffffff',
         onclone: (clonedDoc) => {
-          // Apply light theme for PDF
+          // Remove dark mode
           clonedDoc.documentElement.classList.remove('dark');
           clonedDoc.body.classList.remove('dark');
 
-          // Patch all style tags to remove modern CSS features that crash html2canvas
-          const styleTags = clonedDoc.getElementsByTagName('style');
-          for (let s = 0; s < styleTags.length; s++) {
-            try {
-              const originalCss = styleTags[s].innerHTML;
-              const regex = makeModernCssRegex();
-              if (regex.test(originalCss)) {
-                styleTags[s].innerHTML = originalCss.replace(makeModernCssRegex(), '#000000');
-              }
-            } catch (e) {
-              console.warn("Failed to patch style tag", e);
-            }
-          }
-
-          // Inject override styles for safe hex values and force desktop-width layout
-          const overrideStyle = clonedDoc.createElement('style');
-          overrideStyle.innerHTML = `
-            :root {
-              --color-slate-50: #f8fafc !important;
-              --color-slate-100: #f1f5f9 !important;
-              --color-slate-200: #e2e8f0 !important;
-              --color-slate-300: #cbd5e1 !important;
-              --color-slate-400: #94a3b8 !important;
-              --color-slate-500: #64748b !important;
-              --color-slate-600: #475569 !important;
-              --color-slate-700: #334155 !important;
-              --color-slate-800: #1e293b !important;
-              --color-slate-900: #0f172a !important;
-              --color-emerald-50: #ecfdf5 !important;
-              --color-emerald-400: #34d399 !important;
-              --color-emerald-500: #10b981 !important;
-              --color-emerald-600: #059669 !important;
-              --color-emerald-900: #064e3b !important;
-              --color-rose-400: #fb7185 !important;
-              --color-rose-500: #f43f5e !important;
-              --color-rose-600: #e11d48 !important;
-              --color-blue-500: #3b82f6 !important;
-              --color-amber-500: #f59e0b !important;
-              --color-gray-50: #f9fafb !important;
-              --color-gray-200: #e5e7eb !important;
-              --color-gray-900: #111827 !important;
-            }
-            * {
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-              outline-color: #000000 !important;
-              text-decoration-color: #000000 !important;
-            }
-          `;
-          clonedDoc.head.appendChild(overrideStyle);
-
-          // Clean up the specific element for PDF
           const clonedElement = clonedDoc.getElementById(elementId);
-          if (clonedElement) {
-            clonedElement.classList.remove('dark');
-            clonedElement.querySelectorAll('.dark').forEach(el => el.classList.remove('dark'));
+          if (!clonedElement) return;
 
-            (clonedElement as HTMLElement).style.backgroundColor = '#ffffff';
-            (clonedElement as HTMLElement).style.color = '#0f172a';
-            // Force a fixed width so responsive layouts don't collapse
-            (clonedElement as HTMLElement).style.width = '800px';
-            (clonedElement as HTMLElement).style.maxWidth = 'none';
-            (clonedElement as HTMLElement).style.padding = '40px';
+          // Compute styles from the LIVE DOM and inline them onto the clone
+          // getComputedStyle returns resolved rgb() values even for oklch source
+          const origElements = element.querySelectorAll('*');
+          const clonedElements = clonedElement.querySelectorAll('*');
 
-            // Remove any inline styles with modern CSS functions
-            const allElements = clonedElement.querySelectorAll('*');
-            allElements.forEach(el => {
-              const htmlEl = el as HTMLElement;
-              const inlineStyle = htmlEl.getAttribute('style') || '';
-              const regex = makeModernCssRegex();
-              if (regex.test(inlineStyle)) {
-                htmlEl.style.color = htmlEl.style.color.replace(makeModernCssRegex(), '#000000');
-                htmlEl.style.backgroundColor = htmlEl.style.backgroundColor.replace(makeModernCssRegex(), '#ffffff');
-                htmlEl.style.borderColor = htmlEl.style.borderColor.replace(makeModernCssRegex(), '#e2e8f0');
+          // Style the root element
+          const rootComputed = window.getComputedStyle(element);
+          styleProps.forEach(prop => {
+            try {
+              const val = rootComputed.getPropertyValue(prop);
+              if (val) clonedElement.style.setProperty(prop, val);
+            } catch(e) { /* skip */ }
+          });
+          clonedElement.style.backgroundColor = '#ffffff';
+          clonedElement.style.color = '#0f172a';
+
+          // Style all children
+          const len = Math.min(origElements.length, clonedElements.length);
+          for (let i = 0; i < len; i++) {
+            const origEl = origElements[i];
+            const clonedEl = clonedElements[i] as HTMLElement;
+            try {
+              const computed = window.getComputedStyle(origEl);
+              for (let p = 0; p < styleProps.length; p++) {
+                const val = computed.getPropertyValue(styleProps[p]);
+                if (val) clonedEl.style.setProperty(styleProps[p], val);
               }
-            });
-
-            // Hide no-print elements
-            clonedElement.querySelectorAll('.no-print').forEach(el => {
-              (el as HTMLElement).style.display = 'none';
-            });
+            } catch(e) { /* skip */ }
           }
+
+          // Hide no-print elements
+          clonedElement.querySelectorAll('.no-print').forEach(el => {
+            (el as HTMLElement).style.display = 'none';
+          });
+
+          // Remove dark classes from all cloned elements
+          clonedElement.querySelectorAll('[class*="dark"]').forEach(el => {
+            el.classList.remove('dark');
+          });
         }
       });
 
       const imgData = canvas.toDataURL('image/png');
       const imgProps = pdf.getImageProperties(imgData);
-      const margin = 10; // 10mm margin
+      const margin = 10;
       const contentWidth = pdfWidth - (2 * margin);
       const imgHeight = (imgProps.height * contentWidth) / imgProps.width;
       const contentHeight = pdfHeight - (2 * margin);
 
-      // Place the image, splitting across pages if needed
       let heightLeft = imgHeight;
       let position = 0;
 
