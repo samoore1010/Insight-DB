@@ -122,3 +122,18 @@ export interface Report {
   size: string;
   data?: any;
 }
+
+export type ChangeAction = "create" | "update" | "delete" | "move" | "revert" | "migrate";
+
+export interface ChangelogEntry {
+  id: number;
+  entityType: "estimate" | "disbursement" | "balance";
+  entityId: string;
+  region: string;
+  action: ChangeAction;
+  summary: string;
+  diff?: Record<string, { old: any; new: any }>;
+  snapshot?: any;
+  batchId?: string;
+  createdAt: string;
+}

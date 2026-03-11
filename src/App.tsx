@@ -11,7 +11,9 @@ import CashCalendar from "./components/CashCalendar";
 import ReportsView from "./components/ReportsView";
 import MaximizeWrapper from "./components/MaximizeWrapper";
 import SettingsView from "./components/SettingsView";
-import { LayoutDashboard, Building2, FileText, Settings, Bell, Search, Users, MapPin, Globe, Earth, Car, Building, Landmark, Play, Pause, RotateCcw, Menu, X } from "lucide-react";
+import ChangeHistory from "./components/ChangeHistory";
+import { syncEstimates, syncDisbursements, syncBalances } from "./api/treasury";
+import { LayoutDashboard, Building2, FileText, Settings, Bell, Search, Users, MapPin, Globe, Earth, Car, Building, Landmark, Play, Pause, RotateCcw, Menu, X, History } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 const BANK_HOLIDAYS_2026 = [
@@ -37,7 +39,7 @@ const isBusinessDay = (date: Date) => {
 export default function App() {
   const [multiEntityData, setMultiEntityData] = useState<Record<Entity, DailyData[]> | null>(null);
   const [currentEntity, setCurrentEntity] = useState<Entity>("Executive");
-  const [activeView, setActiveView] = useState<"dashboard" | "reports" | "settings">("dashboard");
+  const [activeView, setActiveView] = useState<"dashboard" | "reports" | "settings" | "history">("dashboard");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [forecastDays, setForecastDays] = useState(14);
   const [isSimulationMode, setIsSimulationMode] = useState(false);
@@ -222,31 +224,29 @@ export default function App() {
     loadData();
   }, []);
 
+  // Granular sync: save per-region changes to normalized tables + keep blob in sync
   useEffect(() => {
     if (!isLoaded) return;
-    fetch("/api/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "entityEstimates", value: entityEstimates }),
-    }).catch(err => console.error("Failed to save estimates:", err));
+    const regions: Exclude<Entity, "Executive">[] = ["Flint", "ISH", "Coldwater", "Chicago"];
+    for (const region of regions) {
+      syncEstimates(region, entityEstimates[region]).catch(err => console.error("Failed to sync estimates:", err));
+    }
   }, [entityEstimates, isLoaded]);
 
   useEffect(() => {
     if (!isLoaded) return;
-    fetch("/api/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "manualOverrides", value: manualOverrides }),
-    }).catch(err => console.error("Failed to save overrides:", err));
+    const regions: Exclude<Entity, "Executive">[] = ["Flint", "ISH", "Coldwater", "Chicago"];
+    for (const region of regions) {
+      syncDisbursements(region, manualOverrides[region]).catch(err => console.error("Failed to sync overrides:", err));
+    }
   }, [manualOverrides, isLoaded]);
 
   useEffect(() => {
     if (!isLoaded) return;
-    fetch("/api/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "manualBalances", value: manualBalances }),
-    }).catch(err => console.error("Failed to save balances:", err));
+    const regions: Exclude<Entity, "Executive">[] = ["Flint", "ISH", "Coldwater", "Chicago"];
+    for (const region of regions) {
+      syncBalances(region, manualBalances[region]).catch(err => console.error("Failed to sync balances:", err));
+    }
   }, [manualBalances, isLoaded]);
 
   useEffect(() => {
@@ -833,12 +833,23 @@ export default function App() {
           </a>
         </nav>
 
-        <div className="p-4 border-t border-slate-800 dark:border-slate-800/50">
-          <button 
+        <div className="p-4 border-t border-slate-800 dark:border-slate-800/50 space-y-1">
+          <button
+            onClick={() => setActiveView("history")}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${
+              activeView === "history"
+                ? "bg-emerald-500/10 text-emerald-400"
+                : "text-slate-400 hover:bg-slate-800 dark:hover:bg-slate-900 hover:text-white"
+            }`}
+          >
+            <History className="w-5 h-5" />
+            Change History
+          </button>
+          <button
             onClick={() => setActiveView("settings")}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${
-              activeView === "settings" 
-                ? "bg-emerald-500/10 text-emerald-400" 
+              activeView === "settings"
+                ? "bg-emerald-500/10 text-emerald-400"
                 : "text-slate-400 hover:bg-slate-800 dark:hover:bg-slate-900 hover:text-white"
             }`}
           >
@@ -917,7 +928,18 @@ export default function App() {
                 </a>
               </nav>
 
-              <div className="p-4 border-t border-slate-800 dark:border-slate-800/50">
+              <div className="p-4 border-t border-slate-800 dark:border-slate-800/50 space-y-1">
+                <button
+                  onClick={() => { setActiveView("history"); setMobileNavOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${
+                    activeView === "history"
+                      ? "bg-emerald-500/10 text-emerald-400"
+                      : "text-slate-400 hover:bg-slate-800 dark:hover:bg-slate-900 hover:text-white"
+                  }`}
+                >
+                  <History className="w-5 h-5" />
+                  Change History
+                </button>
                 <button
                   onClick={() => { setActiveView("settings"); setMobileNavOpen(false); }}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${
@@ -1155,8 +1177,24 @@ export default function App() {
                 dateFormat={dateFormat}
                 companyLogo={companyLogo}
               />
+            ) : activeView === "history" ? (
+              <ChangeHistory
+                currentEntity={currentEntity}
+                onDataReverted={async () => {
+                  // Reload all data from server after a revert
+                  try {
+                    const response = await fetch("/api/data");
+                    const data = await response.json();
+                    if (data.entityEstimates) setEntityEstimates(prev => ({ ...prev, ...data.entityEstimates }));
+                    if (data.manualOverrides) setManualOverrides(prev => ({ ...prev, ...data.manualOverrides }));
+                    if (data.manualBalances) setManualBalances(prev => ({ ...prev, ...data.manualBalances }));
+                  } catch (error) {
+                    console.error("Failed to reload data after revert:", error);
+                  }
+                }}
+              />
             ) : (
-              <SettingsView 
+              <SettingsView
                 theme={theme}
                 onThemeChange={handleThemeChange}
                 currency={currency}
