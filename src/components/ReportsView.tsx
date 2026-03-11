@@ -676,11 +676,28 @@ export default function ReportsView({
     const element = document.getElementById(elementId);
     if (!element) return;
 
-    // Clone the full element (not just innerHTML) to preserve structure
+    // Clone the full element into a print wrapper appended to <body>
     const printWrapper = document.createElement('div');
     printWrapper.className = 'print-report-wrapper';
     const cloned = element.cloneNode(true) as HTMLElement;
     cloned.removeAttribute('id'); // avoid duplicate IDs
+
+    // Force all nested elements to be fully visible (no scroll clipping)
+    const allElements = cloned.querySelectorAll('*');
+    allElements.forEach(el => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.overflow = 'visible';
+      htmlEl.style.maxHeight = 'none';
+      htmlEl.style.height = 'auto';
+    });
+    cloned.style.overflow = 'visible';
+    cloned.style.maxHeight = 'none';
+    cloned.style.height = 'auto';
+    cloned.style.minHeight = '0';
+    cloned.style.backgroundColor = 'white';
+    cloned.style.padding = '1.5cm';
+    cloned.style.width = '100%';
+
     printWrapper.appendChild(cloned);
     document.body.appendChild(printWrapper);
 
