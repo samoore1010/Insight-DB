@@ -348,23 +348,9 @@
     print-color-adjust: exact !important;
   }
 
-  /* Page breaks */
-  .page-break {
-    page-break-before: always;
-    break-before: page;
-    border-top: none !important;
-    padding-top: 0 !important;
-    margin-top: 0 !important;
-  }
-
-  /* cover-page print rules are defined above with the print-wrapper specificity */
-
-  .report-section {
-    break-inside: avoid-page !important;
-    page-break-inside: avoid !important;
-    margin-bottom: 2cm !important;
-  }
-
+  /* Page break rules are handled entirely by handlePrint JS.
+     No CSS page-break rules here — they conflict with inline styles
+     and cause blank pages. Only table rules for clean row breaks. */
   table { page-break-inside: auto; }
   tr { page-break-inside: avoid; page-break-after: auto; }
   thead { display: table-header-group; }
