@@ -676,10 +676,12 @@ export default function ReportsView({
     const element = document.getElementById(elementId);
     if (!element) return;
 
-    // Create a temporary print wrapper outside #root so it's visible during print
+    // Clone the full element (not just innerHTML) to preserve structure
     const printWrapper = document.createElement('div');
     printWrapper.className = 'print-report-wrapper';
-    printWrapper.innerHTML = element.innerHTML;
+    const cloned = element.cloneNode(true) as HTMLElement;
+    cloned.removeAttribute('id'); // avoid duplicate IDs
+    printWrapper.appendChild(cloned);
     document.body.appendChild(printWrapper);
 
     window.print();
@@ -705,75 +707,44 @@ export default function ReportsView({
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
 
-      // Properties to inline from computed styles — covers all visual presentation
-      const styleProps = [
-        'color', 'background-color', 'background-image', 'background',
-        'border-color', 'border-top-color', 'border-bottom-color', 'border-left-color', 'border-right-color',
-        'border-width', 'border-top-width', 'border-bottom-width', 'border-left-width', 'border-right-width',
-        'border-style', 'border-radius',
-        'font-size', 'font-weight', 'font-family', 'font-style', 'line-height', 'letter-spacing', 'text-transform',
-        'text-align', 'text-decoration', 'white-space', 'word-break', 'overflow-wrap',
-        'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
-        'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
-        'display', 'flex-direction', 'justify-content', 'align-items', 'flex-wrap', 'flex-grow', 'flex-shrink',
-        'gap', 'row-gap', 'column-gap',
-        'grid-template-columns', 'grid-column',
-        'width', 'max-width', 'min-width', 'height', 'min-height', 'max-height',
-        'box-shadow', 'opacity', 'overflow', 'position', 'top', 'right', 'bottom', 'left',
-        'vertical-align', 'text-indent',
-      ];
-
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
+        // Expand cloned element to full width so nothing is clipped
+        scrollX: 0,
+        scrollY: -window.scrollY,
         onclone: (clonedDoc) => {
-          // Remove dark mode
+          // Remove dark mode from the document root
           clonedDoc.documentElement.classList.remove('dark');
-          clonedDoc.body.classList.remove('dark');
 
           const clonedElement = clonedDoc.getElementById(elementId);
           if (!clonedElement) return;
 
-          // Compute styles from the LIVE DOM and inline them onto the clone
-          // getComputedStyle returns resolved rgb() values even for oklch source
-          const origElements = element.querySelectorAll('*');
-          const clonedElements = clonedElement.querySelectorAll('*');
-
-          // Style the root element
-          const rootComputed = window.getComputedStyle(element);
-          styleProps.forEach(prop => {
-            try {
-              const val = rootComputed.getPropertyValue(prop);
-              if (val) clonedElement.style.setProperty(prop, val);
-            } catch(e) { /* skip */ }
-          });
+          // Ensure light background
           clonedElement.style.backgroundColor = '#ffffff';
           clonedElement.style.color = '#0f172a';
 
-          // Style all children
-          const len = Math.min(origElements.length, clonedElements.length);
-          for (let i = 0; i < len; i++) {
-            const origEl = origElements[i];
-            const clonedEl = clonedElements[i] as HTMLElement;
-            try {
-              const computed = window.getComputedStyle(origEl);
-              for (let p = 0; p < styleProps.length; p++) {
-                const val = computed.getPropertyValue(styleProps[p]);
-                if (val) clonedEl.style.setProperty(styleProps[p], val);
-              }
-            } catch(e) { /* skip */ }
-          }
+          // Make sure all content is visible (no overflow hidden clipping)
+          clonedElement.style.overflow = 'visible';
+          clonedElement.style.maxHeight = 'none';
+          clonedElement.style.height = 'auto';
 
           // Hide no-print elements
           clonedElement.querySelectorAll('.no-print').forEach(el => {
             (el as HTMLElement).style.display = 'none';
           });
 
-          // Remove dark classes from all cloned elements
-          clonedElement.querySelectorAll('[class*="dark"]').forEach(el => {
+          // Force all dark: variant styles off by removing dark class everywhere
+          clonedDoc.querySelectorAll('.dark').forEach(el => {
             el.classList.remove('dark');
+          });
+
+          // Ensure scrollable containers show all content
+          clonedElement.querySelectorAll('[class*="overflow"]').forEach(el => {
+            (el as HTMLElement).style.overflow = 'visible';
+            (el as HTMLElement).style.maxHeight = 'none';
           });
         }
       });

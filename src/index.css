@@ -314,15 +314,18 @@
     /* Make the in-dashboard report printable via a dedicated print wrapper */
     .print-report-wrapper {
       display: block !important;
-      position: fixed !important;
-      top: 0 !important;
-      left: 0 !important;
+      position: static !important;
       width: 100% !important;
       height: auto !important;
       visibility: visible !important;
       z-index: 99999 !important;
       background: white !important;
       overflow: visible !important;
+    }
+
+    .print-report-wrapper * {
+      overflow: visible !important;
+      max-height: none !important;
     }
 
     /* Ensure the modal content expands */
