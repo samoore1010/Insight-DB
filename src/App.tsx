@@ -262,7 +262,7 @@ export default function App() {
     const projectionOverrides: Record<Exclude<Entity, "Executive">, Record<string, Partial<DailyData>>> = {
       "Flint": {}, "ISH": {}, "Coldwater": {}, "Chicago": {},
     };
-    const actualsOverrides: Record<Exclude<Entity, "Executive">, Record<string, { actualCashIn: number, actualCashOut: number }>> = {
+    const actualsOverrides: Record<Exclude<Entity, "Executive">, Record<string, { actualCashIn?: number, actualCashOut?: number }>> = {
       "Flint": {}, "ISH": {}, "Coldwater": {}, "Chicago": {},
     };
 
@@ -297,7 +297,7 @@ export default function App() {
         .sort((a, b) => new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime());
 
       actualsReports.forEach(report => {
-        const data = report.data as Record<string, { actualCashIn: number, actualCashOut: number }>;
+        const data = report.data as Record<string, { actualCashIn?: number, actualCashOut?: number }>;
         Object.entries(data).forEach(([date, values]) => {
           let normalizedDate = date;
           try {
@@ -324,7 +324,7 @@ export default function App() {
     initialBalanceOverride?: number,
     simOverrides: Record<string, Partial<DailyData>> = {},
     reportProjectionOverride: Record<string, Partial<DailyData>> = {},
-    reportActualsOverride: Record<string, { actualCashIn: number, actualCashOut: number }> = {}
+    reportActualsOverride: Record<string, { actualCashIn?: number, actualCashOut?: number }> = {}
   ) => {
     if (rawData.length === 0) return [];
     
@@ -442,8 +442,8 @@ export default function App() {
       const uploadedActuals = reportActualsOverride[day.date];
       
       if (uploadedActuals) {
-        actualCashIn = index === 0 ? 0 : uploadedActuals.actualCashIn;
-        actualCashOut = uploadedActuals.actualCashOut;
+        actualCashIn = uploadedActuals.actualCashIn !== undefined ? (index === 0 ? 0 : uploadedActuals.actualCashIn) : undefined;
+        actualCashOut = uploadedActuals.actualCashOut !== undefined ? uploadedActuals.actualCashOut : undefined;
       } else if (isHistorical) {
         // Mock actuals with some variance ONLY if no real actuals were uploaded
         actualCashIn = adjCashIn * (0.95 + Math.random() * 0.1);

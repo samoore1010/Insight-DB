@@ -29,11 +29,14 @@ export default function ReconciliationTable({
     return isBefore(dayDate, startOfToday()) || row.actualCashIn !== undefined || row.actualCashOut !== undefined;
   }).reverse(); // Show most recent first
 
+  const hasAnyActualIn = historicalData.some(r => r.actualCashIn !== undefined);
+  const hasAnyActualOut = historicalData.some(r => r.actualCashOut !== undefined);
+
   const totals = historicalData.reduce((acc, curr) => ({
     projIn: acc.projIn + curr.cashIn,
-    actIn: acc.actIn + (curr.actualCashIn || 0),
+    actIn: acc.actIn + (curr.actualCashIn ?? 0),
     projOut: acc.projOut + curr.cashOut,
-    actOut: acc.actOut + (curr.actualCashOut || 0),
+    actOut: acc.actOut + (curr.actualCashOut ?? 0),
   }), { projIn: 0, actIn: 0, projOut: 0, actOut: 0 });
 
   if (historicalData.length === 0) {
@@ -145,10 +148,10 @@ export default function ReconciliationTable({
             <tr>
               <td className="px-4 py-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Historical Totals</td>
               <td className="px-4 py-4 text-xs font-medium text-slate-500 dark:text-slate-400 text-right">{formatCurrency(totals.projIn)}</td>
-              <td className="px-4 py-4 text-sm font-bold text-emerald-700 dark:text-emerald-400 text-right">{formatCurrency(totals.actIn)}</td>
+              <td className="px-4 py-4 text-sm font-bold text-emerald-700 dark:text-emerald-400 text-right">{hasAnyActualIn ? formatCurrency(totals.actIn) : "—"}</td>
               <td className="px-4 py-4 text-right"></td>
               <td className="px-4 py-4 text-xs font-medium text-slate-500 dark:text-slate-400 text-right">{formatCurrency(totals.projOut)}</td>
-              <td className="px-4 py-4 text-sm font-bold text-rose-700 dark:text-rose-400 text-right">{formatCurrency(totals.actOut)}</td>
+              <td className="px-4 py-4 text-sm font-bold text-rose-700 dark:text-rose-400 text-right">{hasAnyActualOut ? formatCurrency(totals.actOut) : "—"}</td>
               <td className="px-4 py-4 text-right"></td>
             </tr>
           </tfoot>
@@ -213,11 +216,11 @@ export default function ReconciliationTable({
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase block">Total In</span>
-              <span className="text-slate-500">{formatCurrency(totals.projIn)}</span> / <span className="font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(totals.actIn)}</span>
+              <span className="text-slate-500">{formatCurrency(totals.projIn)}</span> / <span className="font-bold text-emerald-700 dark:text-emerald-400">{hasAnyActualIn ? formatCurrency(totals.actIn) : "—"}</span>
             </div>
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase block">Total Out</span>
-              <span className="text-slate-500">{formatCurrency(totals.projOut)}</span> / <span className="font-bold text-rose-700 dark:text-rose-400">{formatCurrency(totals.actOut)}</span>
+              <span className="text-slate-500">{formatCurrency(totals.projOut)}</span> / <span className="font-bold text-rose-700 dark:text-rose-400">{hasAnyActualOut ? formatCurrency(totals.actOut) : "—"}</span>
             </div>
           </div>
         </div>

@@ -1013,29 +1013,29 @@ export default function ReportsView({
     return projections;
   };
 
-  const parseActualsCSV = (text: string): Record<string, { actualCashIn: number, actualCashOut: number }> => {
+  const parseActualsCSV = (text: string): Record<string, { actualCashIn?: number, actualCashOut?: number }> => {
     const lines = text.split('\n');
-    const actuals: Record<string, { actualCashIn: number, actualCashOut: number }> = {};
-    
+    const actuals: Record<string, { actualCashIn?: number, actualCashOut?: number }> = {};
+
     // Header: Details,Posting Date,Amount
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
-      
+
       const parts = line.split(',');
       if (parts.length >= 3) {
         const type = parts[0].trim().toUpperCase();
         const dateStr = parts[1].trim();
         const amount = Math.abs(parseFloat(parts[2].trim().replace(/[ "$%,]/g, '')));
-        
+
         if (!actuals[dateStr]) {
-          actuals[dateStr] = { actualCashIn: 0, actualCashOut: 0 };
+          actuals[dateStr] = {};
         }
-        
+
         if (type === 'DEBIT') {
-          actuals[dateStr].actualCashOut += amount;
+          actuals[dateStr].actualCashOut = (actuals[dateStr].actualCashOut || 0) + amount;
         } else if (type === 'CREDIT' || type === 'INFLOW') {
-          actuals[dateStr].actualCashIn += amount;
+          actuals[dateStr].actualCashIn = (actuals[dateStr].actualCashIn || 0) + amount;
         }
       }
     }
