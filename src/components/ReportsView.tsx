@@ -683,12 +683,15 @@ export default function ReportsView({
     cloned.removeAttribute('id'); // avoid duplicate IDs
 
     // Force all nested elements to be fully visible (no scroll clipping)
+    // Preserve cover-page height so it fills exactly one printed page
     const allElements = cloned.querySelectorAll('*');
     allElements.forEach(el => {
       const htmlEl = el as HTMLElement;
       htmlEl.style.overflow = 'visible';
       htmlEl.style.maxHeight = 'none';
-      htmlEl.style.height = 'auto';
+      if (!htmlEl.classList.contains('cover-page')) {
+        htmlEl.style.height = 'auto';
+      }
     });
     cloned.style.overflow = 'visible';
     cloned.style.maxHeight = 'none';
