@@ -1,0 +1,5 @@
+{
+  "name": "Healthcare Treasury Dashboard",
+  "description": "Daily liquidity tracking and forecasting for healthcare entities, featuring cash flow projections, payroll monitoring, and entity-level analysis.",
+  "requestFramePermissions": []
+}
