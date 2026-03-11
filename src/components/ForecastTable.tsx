@@ -58,7 +58,8 @@ export default function ForecastTable({
           </button>
         )}
       </div>
-      <div className="overflow-x-auto">
+      {/* Desktop table */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 dark:bg-slate-800/50 border-y border-slate-200 dark:border-slate-800">
@@ -117,6 +118,62 @@ export default function ForecastTable({
             </tr>
           </tfoot>
         </table>
+      </div>
+
+      {/* Mobile card layout */}
+      <div className="md:hidden">
+        {!isCollapsed && (
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {displayData.map((row, idx) => (
+              <div key={idx} className={clsx(
+                "px-4 py-4 space-y-2",
+                row.isSimulated && "bg-amber-50/20 dark:bg-amber-900/10"
+              )}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-900 dark:text-white">{formatDate(row.date)}</span>
+                    {row.isSimulated && <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[8px] font-bold rounded uppercase">Sim</span>}
+                  </div>
+                  <span className={clsx(
+                    "text-sm font-bold",
+                    row.endingBalance >= 0 ? "text-slate-900 dark:text-white" : "text-rose-600 dark:text-rose-400"
+                  )}>
+                    {formatCurrency(row.endingBalance)}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">In</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">{formatCurrency(row.cashIn)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Out</span>
+                    <span className="text-rose-600 dark:text-rose-400 font-medium">{formatCurrency(row.cashOut)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Net</span>
+                    <span className={clsx(
+                      "font-medium",
+                      row.netFlow >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                    )}>{formatCurrency(row.netFlow)}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Period Totals</span>
+            <div className="flex items-center gap-4">
+              <span className="font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(totals.cashIn)}</span>
+              <span className="font-bold text-rose-700 dark:text-rose-400">{formatCurrency(totals.cashOut)}</span>
+              <span className={clsx("font-bold", totals.netFlow >= 0 ? "text-emerald-800 dark:text-emerald-300" : "text-rose-800 dark:text-rose-300")}>
+                {formatCurrency(totals.netFlow)}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

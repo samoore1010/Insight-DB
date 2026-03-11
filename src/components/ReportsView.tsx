@@ -125,7 +125,7 @@ function ReportContent({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-20">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-20">
             <div className="space-y-6">
               <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em]">Table of Contents</h3>
               <ul className="space-y-4">
@@ -1218,21 +1218,23 @@ export default function ReportsView({
       </AnimatePresence>
 
       {/* Regional Tabs */}
-      <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl w-fit">
-        {regions.map((region) => (
-          <button
-            key={region}
-            onClick={() => setActiveRegion(region)}
-            className={clsx(
-              "px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
-              activeRegion === region 
-                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm" 
-                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-            )}
-          >
-            {region}
-          </button>
-        ))}
+      <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+        <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl w-fit">
+          {regions.map((region) => (
+            <button
+              key={region}
+              onClick={() => setActiveRegion(region)}
+              className={clsx(
+                "px-4 sm:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap",
+                activeRegion === region
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              )}
+            >
+              {region}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

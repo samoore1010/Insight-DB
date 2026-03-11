@@ -83,7 +83,8 @@ export default function ReconciliationTable({
           </button>
         )}
       </div>
-      <div className="overflow-x-auto">
+      {/* Desktop table */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 dark:bg-slate-800/50 border-y border-slate-200 dark:border-slate-800">
@@ -101,14 +102,13 @@ export default function ReconciliationTable({
               {historicalData.map((row, idx) => {
                 const inVariance = row.actualCashIn !== undefined ? row.actualCashIn - row.cashIn : 0;
                 const outVariance = row.actualCashOut !== undefined ? row.actualCashOut - row.cashOut : 0;
-                const hasActuals = row.actualCashIn !== undefined || row.actualCashOut !== undefined;
 
                 return (
                   <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                     <td className="px-4 py-4 text-sm font-medium text-slate-700 dark:text-slate-300">{formatDate(row.date)}</td>
                     <td className="px-4 py-4 text-sm text-slate-500 dark:text-slate-400 text-right">{formatCurrency(row.cashIn)}</td>
                     <td className="px-4 py-4 text-sm text-emerald-600 dark:text-emerald-400 font-medium text-right">
-                      {row.actualCashIn !== undefined ? formatCurrency(row.actualCashIn) : "—"}
+                      {row.actualCashIn !== undefined ? formatCurrency(row.actualCashIn) : "\u2014"}
                     </td>
                     <td className={clsx(
                       "px-4 py-4 text-[10px] font-bold text-right",
@@ -123,7 +123,7 @@ export default function ReconciliationTable({
                     </td>
                     <td className="px-4 py-4 text-sm text-slate-500 dark:text-slate-400 text-right">{formatCurrency(row.cashOut)}</td>
                     <td className="px-4 py-4 text-sm text-rose-600 dark:text-rose-400 font-medium text-right">
-                      {row.actualCashOut !== undefined ? formatCurrency(row.actualCashOut) : "—"}
+                      {row.actualCashOut !== undefined ? formatCurrency(row.actualCashOut) : "\u2014"}
                     </td>
                     <td className={clsx(
                       "px-4 py-4 text-[10px] font-bold text-right",
@@ -153,6 +153,74 @@ export default function ReconciliationTable({
             </tr>
           </tfoot>
         </table>
+      </div>
+
+      {/* Mobile card layout */}
+      <div className="md:hidden">
+        {!isCollapsed && (
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {historicalData.map((row, idx) => {
+              const inVariance = row.actualCashIn !== undefined ? row.actualCashIn - row.cashIn : 0;
+              const outVariance = row.actualCashOut !== undefined ? row.actualCashOut - row.cashOut : 0;
+
+              return (
+                <div key={idx} className="px-4 py-4 space-y-3">
+                  <div className="text-sm font-semibold text-slate-900 dark:text-white">{formatDate(row.date)}</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Cash In</span>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xs text-slate-500">{formatCurrency(row.cashIn)}</span>
+                        <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                          {row.actualCashIn !== undefined ? formatCurrency(row.actualCashIn) : "\u2014"}
+                        </span>
+                      </div>
+                      {row.actualCashIn !== undefined && (
+                        <div className={clsx(
+                          "flex items-center gap-1 text-[10px] font-bold",
+                          inVariance > 0 ? "text-emerald-600" : inVariance < 0 ? "text-rose-600" : "text-slate-400"
+                        )}>
+                          {inVariance > 0 ? <TrendingUp className="w-3 h-3" /> : inVariance < 0 ? <TrendingDown className="w-3 h-3" /> : null}
+                          {formatCurrency(inVariance)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Cash Out</span>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xs text-slate-500">{formatCurrency(row.cashOut)}</span>
+                        <span className="text-xs text-rose-600 dark:text-rose-400 font-medium">
+                          {row.actualCashOut !== undefined ? formatCurrency(row.actualCashOut) : "\u2014"}
+                        </span>
+                      </div>
+                      {row.actualCashOut !== undefined && (
+                        <div className={clsx(
+                          "flex items-center gap-1 text-[10px] font-bold",
+                          outVariance < 0 ? "text-emerald-600" : outVariance > 0 ? "text-rose-600" : "text-slate-400"
+                        )}>
+                          {outVariance < 0 ? <TrendingUp className="w-3 h-3" /> : outVariance > 0 ? <TrendingDown className="w-3 h-3" /> : null}
+                          {formatCurrency(Math.abs(outVariance))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800">
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase block">Total In</span>
+              <span className="text-slate-500">{formatCurrency(totals.projIn)}</span> / <span className="font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(totals.actIn)}</span>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase block">Total Out</span>
+              <span className="text-slate-500">{formatCurrency(totals.projOut)}</span> / <span className="font-bold text-rose-700 dark:text-rose-400">{formatCurrency(totals.actOut)}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
