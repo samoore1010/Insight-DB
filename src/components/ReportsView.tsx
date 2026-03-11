@@ -195,7 +195,7 @@ function ReportContent({
               </div>
             )}
             {/* Executive Summary */}
-            <div className="grid grid-cols-3 gap-6 mb-10">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-10">
               <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Total Available Liquidity</p>
                 <p className="text-3xl font-black text-slate-900 dark:text-white">
@@ -252,14 +252,14 @@ function ReportContent({
             )}
             
             {isComprehensive && (
-              <div className="grid grid-cols-2 gap-6 mb-8">
-                <div className="p-6 bg-slate-900 text-white rounded-2xl">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-8">
+                <div className="p-4 sm:p-6 bg-slate-900 text-white rounded-2xl">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Projected Month-End Balance</p>
                   <p className="text-3xl font-black text-white">
                     {formatCurrency(allData?.[activeRegion][29]?.endingBalance || 0)}
                   </p>
                 </div>
-                <div className="p-6 bg-slate-900 text-white rounded-2xl">
+                <div className="p-4 sm:p-6 bg-slate-900 text-white rounded-2xl">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Total Monthly Net Flow</p>
                   <p className={clsx(
                     "text-3xl font-black",
@@ -390,7 +390,8 @@ function ReportContent({
               <h4 className="font-black text-slate-900 uppercase tracking-widest text-xs border-b border-slate-100 pb-2">
                 Corporate Liquidity Forecast (Current & Next Week)
               </h4>
-              <table className="w-full text-left border-collapse">
+              <div className="overflow-x-auto -mx-2 px-2">
+              <table className="w-full text-left border-collapse min-w-[500px]">
                 <thead>
                   <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
                     <th className="py-3">Date</th>
@@ -414,6 +415,7 @@ function ReportContent({
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
 
@@ -429,7 +431,8 @@ function ReportContent({
               )}
               <div className="space-y-4 mb-10">
                 <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-widest text-xs border-b border-slate-100 dark:border-slate-800 pb-2">Regional Liquidity Matrix</h4>
-                <table className="w-full text-left border-collapse">
+                <div className="overflow-x-auto -mx-2 px-2">
+                <table className="w-full text-left border-collapse min-w-[420px]">
                   <thead>
                     <tr className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
                       <th className="py-3">Region</th>
@@ -481,6 +484,7 @@ function ReportContent({
                     </tr>
                   </tfoot>
                 </table>
+                </div>
               </div>
             </div>
           )}
@@ -494,8 +498,8 @@ function ReportContent({
                 </h2>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-6 mb-8">
-              <div className="p-6 border border-slate-200 rounded-2xl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-8">
+              <div className="p-4 sm:p-6 border border-slate-200 rounded-2xl">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Liquidity Distribution</h4>
                 <div className="space-y-4">
                   {activeRegion === "Executive" ? (
@@ -535,7 +539,7 @@ function ReportContent({
                   )}
                 </div>
               </div>
-              <div className="p-6 border border-slate-200 rounded-2xl">
+              <div className="p-4 sm:p-6 border border-slate-200 rounded-2xl">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Risk Exposure (14-Day)</h4>
                 <div className="space-y-4">
                   {(activeRegion === "Executive" ? ["Flint", "ISH", "Coldwater", "Chicago"] : [activeRegion]).map(region => {
@@ -1156,24 +1160,24 @@ export default function ReportsView({
               className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
               {/* Modal Header */}
-              <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
+              <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0">
                     <FileText className="text-white w-6 h-6" />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900">Professional Report Preview</h3>
-                    <p className="text-xs text-slate-500">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-slate-900 truncate">Professional Report Preview</h3>
+                    <p className="text-xs text-slate-500 truncate">
                       Comprehensive Enterprise Treasury & Liquidity Analysis
                     </p>
                   </div>
                 </div>
 
-                  <div className="flex items-center gap-3">
-                    <button 
+                  <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                    <button
                       onClick={() => handleDownloadPDF('printable-report-content', `${activeRegion}_${reportType}_Report`)}
                       disabled={isGeneratingPDF}
-                      className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10 no-print disabled:opacity-50"
+                      className="flex items-center gap-2 bg-slate-900 text-white px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10 no-print disabled:opacity-50"
                     >
                       <FileDown className="w-4 h-4" />
                       {isGeneratingPDF ? "Generating..." : "Download PDF"}
@@ -1197,8 +1201,8 @@ export default function ReportsView({
                   </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-12 bg-slate-100/50 print:bg-white print:p-0">
-                <div className="max-w-3xl mx-auto bg-white shadow-2xl p-12 min-h-[1123px] relative" id="printable-report-content">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-12 bg-slate-100/50 print:bg-white print:p-0">
+                <div className="max-w-3xl mx-auto bg-white shadow-2xl p-4 sm:p-12 min-h-[600px] sm:min-h-[1123px] relative" id="printable-report-content">
                   <ReportContent 
                     reportType={reportType} 
                     activeRegion={activeRegion} 
@@ -1398,15 +1402,15 @@ export default function ReportsView({
             </div>
           ) : (
             <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col h-full min-h-[600px]">
-              <div className="px-8 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/20">
-                <div className="flex items-center gap-4">
-                  <button 
+              <div className="px-4 sm:px-8 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/20">
+                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                  <button
                     onClick={() => setViewMode("files")}
-                    className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-all"
+                    className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-all flex-shrink-0"
                   >
                     <X className="w-5 h-5" />
                   </button>
-                  <h3 className="font-bold text-slate-900 dark:text-white">
+                  <h3 className="font-bold text-slate-900 dark:text-white truncate">
                     {reportType === "summary" && "Weekly Summary"}
                     {reportType === "daily" && "Daily Detail"}
                     {reportType === "projection" && "Monthly Projection"}
@@ -1464,8 +1468,8 @@ export default function ReportsView({
                   </button>
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50 dark:bg-slate-950/20">
-                <div className="max-w-3xl mx-auto bg-white dark:bg-slate-900 shadow-sm border border-slate-100 dark:border-slate-800 p-10 min-h-full" id="in-dashboard-report-content">
+              <div className="flex-1 overflow-y-auto p-3 sm:p-8 bg-slate-50/50 dark:bg-slate-950/20">
+                <div className="max-w-3xl mx-auto bg-white dark:bg-slate-900 shadow-sm border border-slate-100 dark:border-slate-800 p-4 sm:p-10 min-h-full" id="in-dashboard-report-content">
                   <ReportContent 
                     reportType={reportType} 
                     activeRegion={activeRegion} 

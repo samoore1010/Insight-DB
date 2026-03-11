@@ -921,10 +921,10 @@ export default function CashCalendar({
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
               className="relative w-full max-w-3xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
-              <div className="p-8 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
-                <div className="flex justify-between items-start mb-6">
-                  <div>
-                    <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
+              <div className="p-4 sm:p-8 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+                <div className="flex justify-between items-start mb-4 sm:mb-6">
+                  <div className="min-w-0 flex-1 mr-3">
+                    <h3 className="text-lg sm:text-2xl font-bold text-slate-900 dark:text-white truncate">
                       {timeframe === "1 Day" 
                         ? format(parse(selectedDayData.date, "M/d/yyyy", new Date()), "EEEE, MMMM do")
                         : timeframe === "1 Week"
@@ -983,9 +983,9 @@ export default function CashCalendar({
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-8 pt-6 space-y-8">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-8 pt-4 sm:pt-6 space-y-6 sm:space-y-8">
                 {summary && (
-                  <div className="p-6 bg-slate-900 dark:bg-slate-950 rounded-3xl text-white shadow-xl border border-slate-800">
+                  <div className="p-4 sm:p-6 bg-slate-900 dark:bg-slate-950 rounded-2xl sm:rounded-3xl text-white shadow-xl border border-slate-800">
                     <div className="flex items-center justify-between mb-6">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center">
@@ -1001,7 +1001,7 @@ export default function CashCalendar({
                       </span>
                     </div>
                     
-                    <div className="flex items-center justify-between gap-4">
+                    <div className="hidden sm:flex items-center justify-between gap-4">
                       <div className="flex-1">
                         <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-1 uppercase tracking-widest">Starting Balance</span>
                         <span className="text-2xl font-mono font-bold">{formatCurrency(summary.startBalance, false)}</span>
@@ -1015,6 +1015,22 @@ export default function CashCalendar({
                       <div className="flex-1 text-right">
                         <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-1 uppercase tracking-widest">Current Balance</span>
                         <span className="text-2xl font-mono font-bold text-emerald-400">{formatCurrency(summary.endBalance, false)}</span>
+                      </div>
+                    </div>
+                    <div className="sm:hidden grid grid-cols-3 gap-3 text-center">
+                      <div>
+                        <span className="text-[9px] text-slate-500 uppercase tracking-tight block mb-1">Starting</span>
+                        <span className="text-sm font-mono font-bold">{formatCurrency(summary.startBalance)}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-slate-500 uppercase tracking-tight block mb-1">Outflows</span>
+                        <span className="text-sm font-mono font-bold text-rose-400">{formatCurrency(summary.totalOutflows)}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-slate-500 uppercase tracking-tight block mb-1">Current</span>
+                        <span className={`text-sm font-mono font-bold ${summary.endBalance >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                          {formatCurrency(summary.endBalance)}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1049,11 +1065,11 @@ export default function CashCalendar({
                             .filter(d => filterType === "all" || (d.type || "manual") === filterType)
                             .map((item) => (
                             <DraggableItem key={item.id} id={item.id} date={dayData.date} disabled={isExecutive}>
-                              <motion.div 
+                              <motion.div
                                 layout
-                                className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 group"
+                                className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 group"
                               >
-                                <div className="flex-1 space-y-2">
+                                <div className="flex-1 space-y-2 min-w-0">
                                   <input 
                                     type="text"
                                     disabled={isExecutive}
@@ -1095,18 +1111,18 @@ export default function CashCalendar({
                                     onUpdate={(updates) => handleItemChange(dayData.date, dayData.disbursements, item.id, updates)}
                                   />
                                 </div>
-                                <div className="flex items-center gap-3">
-                                  <MathInput 
+                                <div className="flex items-center gap-3 flex-shrink-0">
+                                  <MathInput
                                     disabled={isExecutive}
                                     value={item.amount}
                                     onChange={(val) => handleItemChange(dayData.date, dayData.disbursements, item.id, { amount: val })}
                                     prefix="$"
-                                    className={`w-32 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono font-bold focus:ring-2 focus:ring-emerald-500 outline-none disabled:opacity-50 text-right shadow-sm ${item.status === 'Paid' ? 'text-slate-400 dark:text-slate-500 line-through' : 'text-rose-600 dark:text-rose-400'}`}
+                                    className={`w-full sm:w-32 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono font-bold focus:ring-2 focus:ring-emerald-500 outline-none disabled:opacity-50 text-right shadow-sm ${item.status === 'Paid' ? 'text-slate-400 dark:text-slate-500 line-through' : 'text-rose-600 dark:text-rose-400'}`}
                                   />
                                   {!isExecutive && (
-                                    <button 
+                                    <button
                                       onClick={() => handleRemoveItem(dayData.date, dayData.disbursements, item.id)}
-                                      className="p-2 text-slate-300 dark:text-slate-600 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                      className="p-2 text-slate-300 dark:text-slate-600 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all sm:opacity-0 sm:group-hover:opacity-100"
                                     >
                                       <Trash2 className="w-4 h-4" />
                                     </button>
@@ -1126,16 +1142,16 @@ export default function CashCalendar({
                 </div>
               </div>
 
-              <div className="p-8 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+              <div className="p-4 sm:p-8 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                <div className="hidden sm:flex items-center gap-2 text-slate-500 dark:text-slate-400">
                   <Calculator className="w-4 h-4" />
                   <span className="text-xs font-medium">
                     {isExecutive ? "View-only Mode" : "Real-time Balance Adjustment"}
                   </span>
                 </div>
-                <button 
+                <button
                   onClick={() => setShowModal(false)}
-                  className="px-8 py-3 bg-slate-900 dark:bg-slate-800 text-white rounded-2xl font-bold text-sm hover:bg-slate-800 dark:hover:bg-slate-700 transition-all shadow-lg shadow-slate-200 dark:shadow-none"
+                  className="px-6 sm:px-8 py-3 bg-slate-900 dark:bg-slate-800 text-white rounded-2xl font-bold text-sm hover:bg-slate-800 dark:hover:bg-slate-700 transition-all shadow-lg shadow-slate-200 dark:shadow-none w-full sm:w-auto"
                 >
                   Done
                 </button>
