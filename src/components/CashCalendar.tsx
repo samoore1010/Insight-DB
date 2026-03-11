@@ -490,7 +490,7 @@ export default function CashCalendar({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 sm:gap-8 overflow-x-auto">
+                <div className="hidden sm:flex items-center gap-4 sm:gap-8">
                   <div className="flex flex-col items-end min-w-0">
                     <span className="text-[9px] text-slate-500 uppercase tracking-tight">Starting</span>
                     <span className="text-xs sm:text-sm font-mono font-bold whitespace-nowrap">{formatCurrency(summary.startBalance, false)}</span>
@@ -505,6 +505,24 @@ export default function CashCalendar({
                     <span className="text-[9px] text-slate-500 uppercase tracking-tight">Current</span>
                     <span className={`text-xs sm:text-sm font-mono font-bold whitespace-nowrap ${summary.endBalance >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                       {formatCurrency(summary.endBalance, false)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Mobile: stacked grid for balance summary values */}
+                <div className="sm:hidden grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <span className="text-[9px] text-slate-500 uppercase tracking-tight block">Starting</span>
+                    <span className="text-[11px] font-mono font-bold whitespace-nowrap">{formatCurrency(summary.startBalance)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-500 uppercase tracking-tight block">Outflows</span>
+                    <span className="text-[11px] font-mono font-bold text-rose-400 whitespace-nowrap">{formatCurrency(summary.totalOutflows)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-500 uppercase tracking-tight block">Current</span>
+                    <span className={`text-[11px] font-mono font-bold whitespace-nowrap ${summary.endBalance >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                      {formatCurrency(summary.endBalance)}
                     </span>
                   </div>
                 </div>
@@ -645,7 +663,7 @@ export default function CashCalendar({
                     }
                   }}
                   isSelected={isSelected}
-                  className={`min-h-[110px] bg-white dark:bg-slate-900 p-2 flex flex-col gap-1 transition-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 ${
+                  className={`min-h-[60px] sm:min-h-[110px] bg-white dark:bg-slate-900 p-1 sm:p-2 flex flex-col gap-0.5 sm:gap-1 transition-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 ${
                     !isCurrentMonth ? "bg-slate-50/50 dark:bg-slate-800/20 opacity-40" : ""
                   } ${isSelected ? "ring-2 ring-inset ring-emerald-500 bg-emerald-50/30 dark:bg-emerald-500/10" : ""}`}
                 >

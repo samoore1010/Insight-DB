@@ -120,7 +120,7 @@ export default function LiquidityChart({
       </div>
 
       <div className={`grid grid-cols-1 ${isMaximized ? 'lg:grid-cols-1 gap-12' : 'lg:grid-cols-1 gap-6'}`}>
-        <div className={`bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm ${isMaximized ? 'border-none shadow-none' : ''}`}>
+        <div className={`bg-white dark:bg-slate-900 p-3 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm ${isMaximized ? 'border-none shadow-none' : ''}`}>
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
             <div>
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Rolling Liquidity Forecast</h3>
