@@ -710,25 +710,28 @@ export default function ReportsView({
     // use page-break-before on the first section AFTER the cover page.
     // This is the standard fix — break-after creates a trailing blank page
     // in many browsers, while break-before on the next element does not.
+    // Remove all .page-break divs — they are empty divs with
+    // page-break-before:always that create blank pages when combined
+    // with any other break mechanism. The cover page had one inside it
+    // at the bottom (line 162 of ReportContent) which was the source
+    // of the persistent blank page 2.
+    cloned.querySelectorAll('.page-break').forEach(el => el.remove());
+
     const coverPage = cloned.querySelector('.cover-page') as HTMLElement | null;
     if (coverPage) {
-      // No page-break-after on cover page at all
-      coverPage.style.pageBreakAfter = '';
-      coverPage.style.breakAfter = '';
+      // Let the cover page use break-after to push content to next page
+      coverPage.style.pageBreakAfter = 'always';
+      coverPage.style.breakAfter = 'page';
       // Remove report-section class to avoid the !important margin-bottom: 2cm
       coverPage.classList.remove('report-section');
       coverPage.style.marginBottom = '0';
 
-      // Find the next sibling section and tell IT to start on a new page
+      // Strip space-y so siblings have no auto margins
       const parent = coverPage.parentElement;
       if (parent) {
-        // Strip space-y so siblings have no auto margins
         parent.className = parent.className.replace(/space-y-\S+/g, '');
-
-        let nextSection = coverPage.nextElementSibling as HTMLElement | null;
+        const nextSection = coverPage.nextElementSibling as HTMLElement | null;
         if (nextSection) {
-          nextSection.style.pageBreakBefore = 'always';
-          nextSection.style.breakBefore = 'page';
           nextSection.style.marginTop = '0';
         }
       }
