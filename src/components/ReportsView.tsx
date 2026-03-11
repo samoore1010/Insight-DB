@@ -683,15 +683,12 @@ export default function ReportsView({
     cloned.removeAttribute('id'); // avoid duplicate IDs
 
     // Force all nested elements to be fully visible (no scroll clipping)
-    // Preserve cover-page height so it fills exactly one printed page
     const allElements = cloned.querySelectorAll('*');
     allElements.forEach(el => {
       const htmlEl = el as HTMLElement;
       htmlEl.style.overflow = 'visible';
       htmlEl.style.maxHeight = 'none';
-      if (!htmlEl.classList.contains('cover-page')) {
-        htmlEl.style.height = 'auto';
-      }
+      htmlEl.style.height = 'auto';
     });
     cloned.style.overflow = 'visible';
     cloned.style.maxHeight = 'none';
@@ -700,6 +697,39 @@ export default function ReportsView({
     cloned.style.backgroundColor = 'white';
     cloned.style.padding = '1.5cm';
     cloned.style.width = '100%';
+
+    // Handle cover page: pull it out of the space-y container so the
+    // page break sits between two top-level blocks with zero margin.
+    // This prevents the blank page that occurs when page-break-after
+    // interacts with Tailwind's space-y margin on the next sibling.
+    const coverPage = cloned.querySelector('.cover-page') as HTMLElement | null;
+    if (coverPage) {
+      const parent = coverPage.parentElement!;
+
+      // Strip space-y class from the parent so remaining children
+      // don't get automatic margin-top from Tailwind
+      parent.className = parent.className.replace(/space-y-\S+/g, '');
+
+      // Pull cover page out of its parent
+      coverPage.remove();
+
+      // Style it as a standalone first-page block
+      coverPage.style.padding = '2cm 0 1cm 0';
+      coverPage.style.margin = '0';
+      coverPage.style.pageBreakAfter = 'always';
+      coverPage.style.breakAfter = 'page';
+
+      // Ensure the remaining content starts flush at top of page 2
+      const firstChild = parent.firstElementChild as HTMLElement | null;
+      if (firstChild) {
+        firstChild.style.marginTop = '0';
+        firstChild.style.paddingTop = '0';
+      }
+
+      // Insert cover page before the content block so they're siblings
+      // with no shared container that could introduce spacing
+      cloned.insertBefore(coverPage, cloned.firstChild);
+    }
 
     printWrapper.appendChild(cloned);
     document.body.appendChild(printWrapper);
