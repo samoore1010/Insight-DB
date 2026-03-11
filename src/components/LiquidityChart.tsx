@@ -57,7 +57,7 @@ export default function LiquidityChart({
       });
 
       return (
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl min-w-[240px]">
+        <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl min-w-[180px] sm:min-w-[240px] max-w-[280px] sm:max-w-none">
           <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 pb-2">{label}</p>
           <div className="space-y-2">
             {sortedPayload.map((entry: any, index: number) => {
