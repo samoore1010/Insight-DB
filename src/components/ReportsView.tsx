@@ -751,6 +751,36 @@ export default function ReportsView({
       }
     }
 
+    // Fix data spill in card bubbles: mark card containers so print CSS
+    // keeps overflow:hidden on them, and auto-shrink text that's too wide.
+    // Target the grid cells (rounded-2xl cards) inside the report.
+    cloned.querySelectorAll('.rounded-2xl').forEach(card => {
+      const htmlCard = card as HTMLElement;
+      htmlCard.setAttribute('data-print-clip', '');
+      htmlCard.style.overflow = 'hidden';
+
+      // Find large currency value elements inside the card and ensure they fit
+      card.querySelectorAll('p, span').forEach(el => {
+        const htmlEl = el as HTMLElement;
+        const text = htmlEl.textContent || '';
+        // Match dollar values: $1,234,567 or similar
+        if (/^\s*[+\-]?\$[\d,]+\s*$/.test(text) && text.length > 8) {
+          htmlEl.style.whiteSpace = 'nowrap';
+          htmlEl.style.overflow = 'hidden';
+          htmlEl.style.textOverflow = 'ellipsis';
+          // Scale down oversized text: if the number has 7+ digits, shrink the font
+          const digits = text.replace(/[^0-9]/g, '').length;
+          if (digits >= 8) {
+            // For 8+ digit numbers in cards, use a smaller font that fits
+            const currentSize = parseFloat(getComputedStyle(htmlEl).fontSize) || 30;
+            if (currentSize >= 24) {
+              htmlEl.style.fontSize = `${Math.max(16, currentSize * 0.72)}px`;
+            }
+          }
+        }
+      });
+    });
+
     printWrapper.appendChild(cloned);
     document.body.appendChild(printWrapper);
 

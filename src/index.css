@@ -324,12 +324,18 @@
     z-index: 99999 !important;
   }
 
-  /* Nuke ALL overflow and height constraints inside the print wrapper */
+  /* Nuke overflow and height constraints inside the print wrapper,
+     EXCEPT for card containers that need to clip long numbers */
   .print-report-wrapper,
   .print-report-wrapper * {
-    overflow: visible !important;
     max-height: none !important;
     flex-shrink: 0 !important;
+  }
+  .print-report-wrapper *:not([data-print-clip]) {
+    overflow: visible !important;
+  }
+  .print-report-wrapper [data-print-clip] {
+    overflow: hidden !important;
   }
 
   /* Also handle the modal if it's open (it's a direct child of body) */

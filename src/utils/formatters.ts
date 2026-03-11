@@ -1,12 +1,15 @@
 
 export const formatCurrency = (val: number, currency: string = 'USD', compact: boolean = true) => {
-  return new Intl.NumberFormat('en-US', {
+  const formatted = new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: currency,
     notation: compact ? 'compact' : 'standard',
     maximumFractionDigits: 0,
     minimumFractionDigits: 0,
   }).format(Math.round(val));
+  // Belt-and-suspenders: some browsers ignore maximumFractionDigits with
+  // compact notation, so strip any residual decimal cents from the output
+  return formatted.replace(/\.\d{1,2}(?=\b|[A-Z]|$)/, '');
 };
 
 export const formatDate = (date: string | Date, formatStr: string = 'MM/DD/YYYY') => {
