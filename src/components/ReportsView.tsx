@@ -690,6 +690,7 @@ export default function ReportsView({
       htmlEl.style.maxHeight = 'none';
       htmlEl.style.height = 'auto';
       htmlEl.style.minHeight = '0';
+      htmlEl.style.boxShadow = 'none';
     });
     cloned.style.overflow = 'visible';
     cloned.style.maxHeight = 'none';
@@ -698,6 +699,12 @@ export default function ReportsView({
     cloned.style.backgroundColor = 'white';
     cloned.style.padding = '1.5cm';
     cloned.style.width = '100%';
+    // Strip box-shadow and border from the outer report container —
+    // the shadow renders as vertical lines on page edges and the
+    // min-height forces a full-page-tall box that creates a blank page
+    cloned.style.boxShadow = 'none';
+    cloned.style.border = 'none';
+    cloned.style.borderRadius = '0';
 
     // Fix blank page issue: instead of page-break-after on cover page,
     // use page-break-before on the first section AFTER the cover page.
