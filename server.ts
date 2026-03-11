@@ -7,7 +7,9 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const db = new Database("treasury.db");
+const dbPath = process.env.DATABASE_PATH || "treasury.db";
+const db = new Database(dbPath);
+console.log(`Using database at: ${dbPath}`);
 
 // Initialize database with AI-ready structure
 // We maintain a 'settings' table for current state and a 'history' table for temporal analysis.
