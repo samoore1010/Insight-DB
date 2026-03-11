@@ -30,14 +30,17 @@ import { motion, AnimatePresence } from "motion/react";
 import { clsx } from "clsx";
 import { format, isWeekend, parse, startOfToday, addDays, endOfWeek, isBefore, isAfter, isSameDay } from "date-fns";
 import { exportLiquidityExcel } from "../services/excelExport";
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer 
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  ReferenceDot,
+  Label
 } from "recharts";
 import { formatCurrency as centralizedFormatCurrency, formatDate as centralizedFormatDate } from "../utils/formatters";
 
@@ -271,40 +274,142 @@ function ReportContent({
               </div>
             )}
 
-            <div className="h-64 w-full mt-4 mb-12">
-              <h4 className="font-black text-slate-900 uppercase tracking-widest text-[10px] mb-4">Liquidity Trend (30-Day Business Forecast)</h4>
+            {(() => {
+              const chartData = allData?.[activeRegion].slice(0, 30).filter((d: any) => isBusinessDay(parse(d.date, "M/d/yyyy", new Date()))) || [];
+              const minEntry = chartData.reduce((min: any, d: any) => (d.endingBalance < (min?.endingBalance ?? Infinity) ? d : min), chartData[0]);
+              const hasNegative = chartData.some((d: any) => d.endingBalance < 0);
+              return (
+            <div className="h-72 w-full mt-4 mb-12">
+              <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-widest text-[10px] mb-4">Liquidity Trend (30-Day Business Forecast)</h4>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={allData?.[activeRegion].slice(0, 30).filter((d: any) => isBusinessDay(parse(d.date, "M/d/yyyy", new Date())))}>
+                <AreaChart data={chartData} margin={{ top: 10, right: 12, left: 8, bottom: 0 }}>
                   <defs>
-                    <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0f172a" stopOpacity={0.1}/>
-                      <stop offset="95%" stopColor="#0f172a" stopOpacity={0}/>
+                    {/* Green gradient for positive territory */}
+                    <linearGradient id="colorBalancePos" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.18}/>
+                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.02}/>
                     </linearGradient>
+                    {/* Red gradient for negative territory */}
+                    <linearGradient id="colorBalanceNeg" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.02}/>
+                      <stop offset="100%" stopColor="#f43f5e" stopOpacity={0.18}/>
+                    </linearGradient>
+                    {/* Split gradient: green above baseline, red below */}
+                    {(() => {
+                      const vals = chartData.map((d: any) => d.endingBalance);
+                      const max = Math.max(...vals);
+                      const min = Math.min(...vals);
+                      // Proportion of the chart height where $0 sits (0 = top, 1 = bottom)
+                      const zeroOffset = max <= 0 ? 0 : min >= 0 ? 1 : max / (max - min);
+                      return (
+                        <linearGradient id="splitFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity={0.18}/>
+                          <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#10b981" stopOpacity={0.03}/>
+                          <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#f43f5e" stopOpacity={0.03}/>
+                          <stop offset="100%" stopColor="#f43f5e" stopOpacity={0.22}/>
+                        </linearGradient>
+                      );
+                    })()}
+                    {/* Stroke gradient: same split logic */}
+                    {(() => {
+                      const vals = chartData.map((d: any) => d.endingBalance);
+                      const max = Math.max(...vals);
+                      const min = Math.min(...vals);
+                      const zeroOffset = max <= 0 ? 0 : min >= 0 ? 1 : max / (max - min);
+                      return (
+                        <linearGradient id="splitStroke" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981"/>
+                          <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#10b981"/>
+                          <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#f43f5e"/>
+                          <stop offset="100%" stopColor="#f43f5e"/>
+                        </linearGradient>
+                      );
+                    })()}
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis 
-                    dataKey="date" 
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis
+                    dataKey="date"
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }}
+                    tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 600 }}
                     dy={10}
                     tickFormatter={(val) => formatDate(val)}
+                    interval="preserveStartEnd"
                   />
-                  <YAxis 
-                    hide
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 600 }}
+                    tickFormatter={(val: number) => formatCurrency(val, true)}
+                    width={62}
                     domain={['auto', 'auto']}
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="endingBalance" 
-                    stroke="#0f172a" 
-                    strokeWidth={3}
-                    fillOpacity={1} 
-                    fill="url(#colorBalance)" 
+                  <Tooltip
+                    content={({ active, payload, label }: any) => {
+                      if (!active || !payload?.length) return null;
+                      const val = payload[0].value as number;
+                      return (
+                        <div className="bg-slate-900 text-white px-3 py-2 rounded-lg shadow-xl text-xs">
+                          <p className="text-slate-400 font-semibold mb-1">{formatDate(label)}</p>
+                          <p className={clsx("font-mono font-black text-sm", val >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                            {formatCurrency(val)}
+                          </p>
+                        </div>
+                      );
+                    }}
                   />
+                  {/* $0 Reference Line */}
+                  {hasNegative && (
+                    <ReferenceLine
+                      y={0}
+                      stroke="#f43f5e"
+                      strokeDasharray="6 4"
+                      strokeWidth={1.5}
+                    >
+                      <Label
+                        value="$0"
+                        position="left"
+                        fill="#f43f5e"
+                        fontSize={10}
+                        fontWeight={700}
+                        offset={8}
+                      />
+                    </ReferenceLine>
+                  )}
+                  <Area
+                    type="monotone"
+                    dataKey="endingBalance"
+                    stroke="url(#splitStroke)"
+                    strokeWidth={2.5}
+                    fillOpacity={1}
+                    fill="url(#splitFill)"
+                    baseValue={0}
+                  />
+                  {/* Min balance annotation */}
+                  {minEntry && (
+                    <ReferenceDot
+                      x={minEntry.date}
+                      y={minEntry.endingBalance}
+                      r={4}
+                      fill={minEntry.endingBalance >= 0 ? "#f59e0b" : "#f43f5e"}
+                      stroke="white"
+                      strokeWidth={2}
+                    >
+                      <Label
+                        value={`Min: ${formatCurrency(minEntry.endingBalance)}`}
+                        position={minEntry.endingBalance >= 0 ? "bottom" : "top"}
+                        fill={minEntry.endingBalance >= 0 ? "#f59e0b" : "#f43f5e"}
+                        fontSize={9}
+                        fontWeight={700}
+                        offset={10}
+                      />
+                    </ReferenceDot>
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
+              );
+            })()}
           </div>
 
           {/* Critical Obligations Section */}
