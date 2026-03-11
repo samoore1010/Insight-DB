@@ -672,6 +672,24 @@ export default function ReportsView({
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const handlePrint = (elementId: string) => {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+
+    // Create a temporary print wrapper outside #root so it's visible during print
+    const printWrapper = document.createElement('div');
+    printWrapper.className = 'print-report-wrapper';
+    printWrapper.innerHTML = element.innerHTML;
+    document.body.appendChild(printWrapper);
+
+    window.print();
+
+    // Cleanup after print dialog closes
+    setTimeout(() => {
+      document.body.removeChild(printWrapper);
+    }, 1000);
+  };
+
   const handleDownloadPDF = async (elementId: string, fileName: string) => {
     const element = document.getElementById(elementId);
     if (!element) {
@@ -684,163 +702,138 @@ export default function ReportsView({
       // Small delay to ensure DOM is settled
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Find all sections to capture individually
-      const sections = Array.from(element.querySelectorAll('.report-section'));
-      
-      // If no sections found (fallback), capture the whole element
-      const sectionsToCapture = sections.length > 0 ? sections : [element];
-
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-      
+
       const isDarkMode = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
-      for (let i = 0; i < sectionsToCapture.length; i++) {
-        const section = sectionsToCapture[i] as HTMLElement;
-        
-        // Temporarily hide elements marked as no-print within this section
-        const noPrintElements = section.querySelectorAll('.no-print');
-        const originalDisplays: string[] = [];
-        noPrintElements.forEach(el => {
-          originalDisplays.push((el as HTMLElement).style.display);
-          (el as HTMLElement).style.display = 'none';
-        });
+      // Fresh regex for each usage - avoids lastIndex bug with global flag
+      const makeModernCssRegex = () => /(oklch|oklab|color-mix|light-dark|lab|lch|hwb|color)\s*\((?:[^()]+|\((?:[^()]+|\([^()]*\))*\))*\)/gi;
 
-        // Use a slightly lower scale for very long reports to avoid memory issues
-        const captureScale = sectionsToCapture.length > 5 ? 1.5 : 2;
+      // Capture the entire element as one piece for better fidelity
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: isDarkMode ? '#020617' : '#ffffff',
+        width: 800, // Force a desktop-like width for consistent rendering
+        windowWidth: 1200, // Simulate desktop viewport so responsive classes expand
+        onclone: (clonedDoc) => {
+          // Apply light theme for PDF
+          clonedDoc.documentElement.classList.remove('dark');
+          clonedDoc.body.classList.remove('dark');
 
-        const canvas = await html2canvas(section, {
-          scale: captureScale,
-          useCORS: true,
-          logging: false,
-          backgroundColor: isDarkMode ? '#020617' : '#ffffff',
-          onclone: (clonedDoc) => {
-            // Apply theme for the PDF capture
-            if (isDarkMode) {
-              clonedDoc.documentElement.classList.add('dark');
-              clonedDoc.body.classList.add('dark');
-            } else {
-              clonedDoc.documentElement.classList.remove('dark');
-              clonedDoc.body.classList.remove('dark');
-            }
-            
-            // 1. Aggressively patch all style tags to remove modern CSS features that crash html2canvas
-            const styleTags = clonedDoc.getElementsByTagName('style');
-            // This regex targets modern CSS functions and handles nested parentheses (up to 2 levels)
-            // It covers oklch, oklab, color-mix, light-dark, lab, lch, hwb, and the modern color() function
-            const modernCssRegex = /(oklch|oklab|color-mix|light-dark|lab|lch|hwb|color)\s*\((?:[^()]+|\((?:[^()]+|\([^()]*\))*\))*\)/gi;
-            
-            for (let i = 0; i < styleTags.length; i++) {
-              try {
-                const originalCss = styleTags[i].innerHTML;
-                if (modernCssRegex.test(originalCss)) {
-                  // Replace with a safe fallback (black or transparent depending on context is hard, so we use a neutral hex)
-                  styleTags[i].innerHTML = originalCss.replace(modernCssRegex, '#000000');
-                }
-              } catch (e) {
-                console.warn("Failed to patch style tag", e);
+          // Patch all style tags to remove modern CSS features that crash html2canvas
+          const styleTags = clonedDoc.getElementsByTagName('style');
+          for (let s = 0; s < styleTags.length; s++) {
+            try {
+              const originalCss = styleTags[s].innerHTML;
+              const regex = makeModernCssRegex();
+              if (regex.test(originalCss)) {
+                styleTags[s].innerHTML = originalCss.replace(makeModernCssRegex(), '#000000');
               }
-            }
-
-            // 2. Inject a master override style to provide safe hex values for all common Tailwind variables
-            const overrideStyle = clonedDoc.createElement('style');
-            overrideStyle.innerHTML = `
-              :root {
-                --color-slate-50: #f8fafc !important;
-                --color-slate-100: #f1f5f9 !important;
-                --color-slate-200: #e2e8f0 !important;
-                --color-slate-300: #cbd5e1 !important;
-                --color-slate-400: #94a3b8 !important;
-                --color-slate-500: #64748b !important;
-                --color-slate-600: #475569 !important;
-                --color-slate-700: #334155 !important;
-                --color-slate-800: #1e293b !important;
-                --color-slate-900: #0f172a !important;
-                --color-emerald-50: #ecfdf5 !important;
-                --color-emerald-500: #10b981 !important;
-                --color-emerald-900: #064e3b !important;
-                --color-rose-500: #f43f5e !important;
-                --color-blue-500: #3b82f6 !important;
-                --color-amber-500: #f59e0b !important;
-                --color-gray-50: #f9fafb !important;
-                --color-gray-200: #e5e7eb !important;
-                --color-gray-900: #111827 !important;
-              }
-              /* Force standard colors for common elements */
-              * {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-                outline-color: #000000 !important;
-                text-decoration-color: #000000 !important;
-              }
-            `;
-            clonedDoc.head.appendChild(overrideStyle);
-
-            // 3. Clean up the specific element and its children
-            const clonedElement = clonedDoc.getElementById(elementId);
-            if (clonedElement) {
-              clonedElement.classList.remove('dark');
-              clonedElement.querySelectorAll('.dark').forEach(el => el.classList.remove('dark'));
-              
-              // Ensure background is white and text is dark
-              (clonedElement as HTMLElement).style.backgroundColor = '#ffffff';
-              (clonedElement as HTMLElement).style.color = '#0f172a';
-
-              // Remove any inline styles that might use modern CSS functions
-              const allElements = clonedElement.querySelectorAll('*');
-              allElements.forEach(el => {
-                const htmlEl = el as HTMLElement;
-                const inlineStyle = htmlEl.getAttribute('style') || '';
-                if (modernCssRegex.test(inlineStyle)) {
-                  // If inline style has problematic functions, try to strip them or clear the style
-                  // Clearing is safer if we can't easily parse the inline style
-                  htmlEl.style.color = htmlEl.style.color.replace(modernCssRegex, '#000000');
-                  htmlEl.style.backgroundColor = htmlEl.style.backgroundColor.replace(modernCssRegex, '#ffffff');
-                  htmlEl.style.borderColor = htmlEl.style.borderColor.replace(modernCssRegex, '#e2e8f0');
-                }
-              });
+            } catch (e) {
+              console.warn("Failed to patch style tag", e);
             }
           }
-        });
 
-        // Restore hidden elements
-        noPrintElements.forEach((el, i) => {
-          (el as HTMLElement).style.display = originalDisplays[i];
-        });
+          // Inject override styles for safe hex values and force desktop-width layout
+          const overrideStyle = clonedDoc.createElement('style');
+          overrideStyle.innerHTML = `
+            :root {
+              --color-slate-50: #f8fafc !important;
+              --color-slate-100: #f1f5f9 !important;
+              --color-slate-200: #e2e8f0 !important;
+              --color-slate-300: #cbd5e1 !important;
+              --color-slate-400: #94a3b8 !important;
+              --color-slate-500: #64748b !important;
+              --color-slate-600: #475569 !important;
+              --color-slate-700: #334155 !important;
+              --color-slate-800: #1e293b !important;
+              --color-slate-900: #0f172a !important;
+              --color-emerald-50: #ecfdf5 !important;
+              --color-emerald-400: #34d399 !important;
+              --color-emerald-500: #10b981 !important;
+              --color-emerald-600: #059669 !important;
+              --color-emerald-900: #064e3b !important;
+              --color-rose-400: #fb7185 !important;
+              --color-rose-500: #f43f5e !important;
+              --color-rose-600: #e11d48 !important;
+              --color-blue-500: #3b82f6 !important;
+              --color-amber-500: #f59e0b !important;
+              --color-gray-50: #f9fafb !important;
+              --color-gray-200: #e5e7eb !important;
+              --color-gray-900: #111827 !important;
+            }
+            * {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              outline-color: #000000 !important;
+              text-decoration-color: #000000 !important;
+            }
+          `;
+          clonedDoc.head.appendChild(overrideStyle);
 
-        const imgData = canvas.toDataURL('image/png');
-        const imgProps = pdf.getImageProperties(imgData);
-        const margin = 10; // 10mm margin
-        const contentWidth = pdfWidth - (2 * margin);
-        const contentHeight = pdfHeight - (2 * margin);
-        const imgHeight = (imgProps.height * contentWidth) / imgProps.width;
+          // Clean up the specific element for PDF
+          const clonedElement = clonedDoc.getElementById(elementId);
+          if (clonedElement) {
+            clonedElement.classList.remove('dark');
+            clonedElement.querySelectorAll('.dark').forEach(el => el.classList.remove('dark'));
 
-        // If not the first section, add a new page
-        if (i > 0) {
-          pdf.addPage();
+            (clonedElement as HTMLElement).style.backgroundColor = '#ffffff';
+            (clonedElement as HTMLElement).style.color = '#0f172a';
+            // Force a fixed width so responsive layouts don't collapse
+            (clonedElement as HTMLElement).style.width = '800px';
+            (clonedElement as HTMLElement).style.maxWidth = 'none';
+            (clonedElement as HTMLElement).style.padding = '40px';
+
+            // Remove any inline styles with modern CSS functions
+            const allElements = clonedElement.querySelectorAll('*');
+            allElements.forEach(el => {
+              const htmlEl = el as HTMLElement;
+              const inlineStyle = htmlEl.getAttribute('style') || '';
+              const regex = makeModernCssRegex();
+              if (regex.test(inlineStyle)) {
+                htmlEl.style.color = htmlEl.style.color.replace(makeModernCssRegex(), '#000000');
+                htmlEl.style.backgroundColor = htmlEl.style.backgroundColor.replace(makeModernCssRegex(), '#ffffff');
+                htmlEl.style.borderColor = htmlEl.style.borderColor.replace(makeModernCssRegex(), '#e2e8f0');
+              }
+            });
+
+            // Hide no-print elements
+            clonedElement.querySelectorAll('.no-print').forEach(el => {
+              (el as HTMLElement).style.display = 'none';
+            });
+          }
         }
+      });
 
-        // If section is taller than one page, we slice it
-        let heightLeft = imgHeight;
-        let position = 0;
+      const imgData = canvas.toDataURL('image/png');
+      const imgProps = pdf.getImageProperties(imgData);
+      const margin = 10; // 10mm margin
+      const contentWidth = pdfWidth - (2 * margin);
+      const imgHeight = (imgProps.height * contentWidth) / imgProps.width;
+      const contentHeight = pdfHeight - (2 * margin);
 
-        // Draw the first part with margins
+      // Place the image, splitting across pages if needed
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, imgHeight);
+      heightLeft -= contentHeight;
+
+      while (heightLeft > 0) {
+        position -= contentHeight;
+        pdf.addPage();
         pdf.addImage(imgData, 'PNG', margin, margin + position, contentWidth, imgHeight);
         heightLeft -= contentHeight;
-
-        while (heightLeft > 0) {
-          position -= contentHeight;
-          pdf.addPage();
-          pdf.addImage(imgData, 'PNG', margin, margin + position, contentWidth, imgHeight);
-          heightLeft -= contentHeight;
-        }
       }
 
       pdf.save(`${fileName.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`);
     } catch (error) {
       console.error("PDF Generation Error:", error);
-      alert("There was an error generating your PDF. This can happen with very large reports. Please try the 'Print' option and 'Save as PDF' from your browser's print dialog instead.");
+      alert("There was an error generating your PDF. Please try using your browser's Print > Save as PDF option instead.");
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -1182,11 +1175,8 @@ export default function ReportsView({
                       <FileDown className="w-4 h-4" />
                       {isGeneratingPDF ? "Generating..." : "Download PDF"}
                     </button>
-                    <button 
-                      onClick={() => {
-                        window.focus();
-                        window.print();
-                      }}
+                    <button
+                      onClick={() => handlePrint('printable-report-content')}
                       className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all no-print"
                     >
                       <Printer className="w-4 h-4" />
@@ -1460,8 +1450,8 @@ export default function ReportsView({
                     <FileDown className="w-4 h-4 text-emerald-600" />
                     {isGeneratingPDF ? "..." : "PDF"}
                   </button>
-                  <button 
-                    onClick={() => window.print()}
+                  <button
+                    onClick={() => handlePrint('in-dashboard-report-content')}
                     className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-all"
                   >
                     <Printer className="w-4 h-4" />

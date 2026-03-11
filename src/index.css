@@ -280,25 +280,27 @@
 
 @layer utilities {
   @media print {
-    /* Hide everything except the report modal container */
+    /* Hide everything except report content */
     html, body {
       height: auto !important;
       overflow: visible !important;
       background: white !important;
     }
 
-    /* Hide the entire app root by default */
+    /* When printing, hide the entire app but show report containers */
     #root {
-      display: none !important;
+      visibility: hidden !important;
+      position: absolute !important;
+      width: 0 !important;
+      height: 0 !important;
+      overflow: hidden !important;
     }
 
-    /* If we use a portal, it might be a sibling of #root. 
-       If not, we need to make sure the report container is visible.
-       Since we'll move it to a Portal in the next step, we'll target it as a direct child of body.
-    */
+    /* The report modal portal is a sibling of #root */
     body > .report-modal-container {
       display: block !important;
       position: static !important;
+      visibility: visible !important;
       width: 100% !important;
       height: auto !important;
       min-height: 100% !important;
@@ -307,6 +309,20 @@
       margin: 0 !important;
       overflow: visible !important;
       z-index: auto !important;
+    }
+
+    /* Make the in-dashboard report printable via a dedicated print wrapper */
+    .print-report-wrapper {
+      display: block !important;
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      height: auto !important;
+      visibility: visible !important;
+      z-index: 99999 !important;
+      background: white !important;
+      overflow: visible !important;
     }
 
     /* Ensure the modal content expands */
@@ -332,21 +348,17 @@
     }
 
     /* Target the actual report content */
-    #printable-report {
+    #printable-report-content,
+    #in-dashboard-report-content {
       display: block !important;
       position: static !important;
       width: 100% !important;
       max-width: none !important;
       margin: 0 !important;
-      padding: 0 !important;
+      padding: 1.5cm !important;
       background: white !important;
       overflow: visible !important;
-    }
-
-    /* Professional spacing for print */
-    #printable-report .max-w-3xl {
-      max-width: none !important;
-      padding: 1.5cm !important;
+      color: #0f172a !important;
     }
 
     /* Force background colors and images in print */
@@ -354,7 +366,7 @@
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
-    
+
     /* Remove any fixed heights that might clip content */
     .h-48, .h-full, .max-h-\[90vh\], .flex-1 {
       height: auto !important;
@@ -372,7 +384,7 @@
     /* Ensure cover page fits on one page */
     .cover-page {
       min-height: 0 !important;
-      height: 25cm !important; /* Safe height for A4/Letter */
+      height: 25cm !important;
       page-break-after: always !important;
       break-after: page !important;
       display: flex !important;
