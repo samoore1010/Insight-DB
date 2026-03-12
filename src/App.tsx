@@ -1510,7 +1510,7 @@ export default function App() {
               <div className="hidden lg:flex items-center gap-4">
                 <div className="flex flex-col items-end">
                   <span className="text-sm font-semibold text-slate-900 dark:text-white">{currentUser.displayName}</span>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">{currentUser.role === "admin" ? "Admin" : "Viewer"} &middot; {isDepartmentMode ? `${deptName} / ${regionDisplayName(currentEntity)}` : currentEntity}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">{currentUser.role === "admin" ? "Admin" : "Viewer"} &middot; {isDepartmentMode ? `${deptName} / ${currentEntity === deptConsolidatedKey ? "Overview" : regionDisplayName(currentEntity)}` : currentEntity}</span>
                 </div>
               </div>
               <button
@@ -1571,7 +1571,7 @@ export default function App() {
                 ))}
               </select>
             </div>
-            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{isDepartmentMode ? regionDisplayName(currentEntity) : currentEntity}</span>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{isDepartmentMode ? (currentEntity === deptConsolidatedKey ? "Overview" : regionDisplayName(currentEntity)) : currentEntity}</span>
           </div>
         </header>
 
@@ -1588,12 +1588,14 @@ export default function App() {
                 >
                   <div className="flex items-center gap-3 mb-1">
                     <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold uppercase rounded tracking-wider">
-                      {isDepartmentMode ? deptName : (currentEntity === EXECUTIVE_ENTITY ? "Consolidated" : "Single Entity")}
+                      {currentEntity === EXECUTIVE_ENTITY || currentEntity === deptConsolidatedKey ? "Consolidated" : (isDepartmentMode ? deptName : "Single Entity")}
                     </span>
                     <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-                      {isDepartmentMode
-                        ? `${regionDisplayName(currentEntity)} Liquidity Dashboard`
-                        : (currentEntity === EXECUTIVE_ENTITY ? "Executive Treasury Overview" : `${currentEntity} Liquidity Dashboard`)}
+                      {currentEntity === deptConsolidatedKey
+                        ? `${deptName} Overview`
+                        : isDepartmentMode
+                          ? `${regionDisplayName(currentEntity)} Liquidity Dashboard`
+                          : (currentEntity === EXECUTIVE_ENTITY ? "Executive Treasury Overview" : `${currentEntity} Liquidity Dashboard`)}
                     </h1>
                   </div>
                 </motion.div>
@@ -1631,7 +1633,7 @@ export default function App() {
                       onUpdateDay={handleUpdateDay}
                       onMoveDisbursement={handleMoveDisbursement}
                       onMoveMultipleDisbursements={handleMoveMultipleDisbursements}
-                      isExecutive={currentEntity === EXECUTIVE_ENTITY}
+                      isExecutive={currentEntity === EXECUTIVE_ENTITY || currentEntity === deptConsolidatedKey}
                       currency={currency}
                       dateFormat={dateFormat}
                       regions={regions}
@@ -1657,7 +1659,7 @@ export default function App() {
                   </MaximizeWrapper>
                 </div>
 
-                {(isDepartmentMode || currentEntity !== "Executive") && (
+                {currentEntity !== EXECUTIVE_ENTITY && currentEntity !== deptConsolidatedKey && (
                   <div className="mt-8">
                     <MaximizeWrapper title="Disbursement Adjustments">
                       <DisbursementEstimates
@@ -1673,7 +1675,7 @@ export default function App() {
               </div>
             ) : activeView === "reports" ? (
               <ReportsView
-                regions={[...(canSeeExecutive ? [EXECUTIVE_ENTITY] : []), ...visibleRegions]}
+                regions={[...(canSeeExecutive ? [EXECUTIVE_ENTITY] : []), ...(isDepartmentMode && regions.length > 0 ? [deptConsolidatedKey] : []), ...visibleRegions]}
                 allData={allAdjustedData}
                 reports={reports}
                 onReportsChange={setReports}
