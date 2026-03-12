@@ -780,13 +780,13 @@ export default function ReportsView({
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handlePrint = (elementId: string) => {
+  const handlePrint = async (elementId: string) => {
     const element = document.getElementById(elementId);
     if (!element) return;
 
-    // ── 0. Capture chart as image BEFORE cloning ───────────────────
+    // ── 0. Capture chart as PNG image BEFORE cloning ────────────────
     // Recharts SVGs depend on gradient/clipPath IDs that collide when
-    // cloned. The bulletproof fix: rasterize charts to canvas first.
+    // cloned. Rasterize to a real PNG canvas so it prints reliably.
     const chartEl = element.querySelector('[data-print-chart]') as HTMLElement | null;
     let chartImageDataUrl: string | null = null;
     let chartWidth = 0;
@@ -799,24 +799,29 @@ export default function ReportsView({
         try {
           const serializer = new XMLSerializer();
           const svgStr = serializer.serializeToString(svg);
-          const canvas = document.createElement('canvas');
           const scale = 2; // retina quality
-          canvas.width = chartWidth * scale;
-          canvas.height = chartHeight * scale;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.scale(scale, scale);
+          // Await the image load so we get a real PNG, not a raw SVG data URL
+          chartImageDataUrl = await new Promise<string | null>((resolve) => {
             const img = new Image();
-            const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
-            const url = URL.createObjectURL(svgBlob);
             img.onload = () => {
-              ctx.drawImage(img, 0, 0, chartWidth, chartHeight);
-              URL.revokeObjectURL(url);
+              URL.revokeObjectURL(img.src);
+              const canvas = document.createElement('canvas');
+              canvas.width = chartWidth * scale;
+              canvas.height = chartHeight * scale;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.scale(scale, scale);
+                ctx.drawImage(img, 0, 0, chartWidth, chartHeight);
+                resolve(canvas.toDataURL('image/png'));
+              } else {
+                resolve(null);
+              }
             };
-            img.src = url;
-            // Synchronous fallback: encode directly
-            chartImageDataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgStr)))}`;
-          }
+            img.onerror = () => { URL.revokeObjectURL(img.src); resolve(null); };
+            // Use a blob URL for reliable cross-browser SVG rendering
+            const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+            img.src = URL.createObjectURL(svgBlob);
+          });
         } catch {
           // If serialization fails, we'll fall back to the gradient fix below
         }
