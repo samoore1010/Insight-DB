@@ -623,7 +623,7 @@ export default function SettingsView({
                               </button>
                             ) : (
                               <button
-                                onClick={() => { setEditingUserId(user.id); setEditRegions(user.allowedRegions || []); setEditLocation(isDeptAdmin ? (currentUser?.location || user.location || "executive") : (user.location || "executive")); }}
+                                onClick={() => { setEditingUserId(user.id); setEditRegions(user.allowedRegions || []); setEditLocation(user.location || "executive"); }}
                                 className="px-2.5 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
                               >
                                 Edit

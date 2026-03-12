@@ -971,16 +971,9 @@ async function startServer() {
       const assignedLocation = user.location || "executive";
       let effectiveLocation = assignedLocation;
 
-      if (user.role === "admin" && assignedLocation === "executive") {
-        // Only executive admins can log in to any location
+      if (user.role === "admin") {
+        // Admins can log in to any location
         effectiveLocation = requestedLocation || assignedLocation;
-      } else if (user.role === "admin") {
-        // Department admins are restricted to their assigned department
-        if (requestedLocation && requestedLocation !== assignedLocation) {
-          return res.status(403).json({
-            error: `You are an admin of the ${assignedLocation} department only. You cannot access ${requestedLocation}.`
-          });
-        }
       } else {
         // Non-admins are restricted to their assigned location
         if (requestedLocation && requestedLocation !== assignedLocation) {
@@ -1018,14 +1011,9 @@ async function startServer() {
         return res.json({ locations: ["executive", ...depts.map((d: any) => d.name)], defaultLocation: "executive" });
       }
       if (user.role === "admin") {
-        const assignedLocation = user.location || "executive";
-        if (assignedLocation === "executive") {
-          // Executive admins can access all locations
-          const depts = db.prepare("SELECT name FROM departments ORDER BY name").all() as any[];
-          return res.json({ locations: ["executive", ...depts.map((d: any) => d.name)], defaultLocation: assignedLocation });
-        }
-        // Department admins can only access their assigned department
-        return res.json({ locations: [assignedLocation], defaultLocation: assignedLocation });
+        // Admins can access all locations
+        const depts = db.prepare("SELECT name FROM departments ORDER BY name").all() as any[];
+        return res.json({ locations: ["executive", ...depts.map((d: any) => d.name)], defaultLocation: user.location || "executive" });
       }
       // Non-admin: only their assigned location
       const assignedLocation = user.location || "executive";
