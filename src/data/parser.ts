@@ -1,9 +1,21 @@
 import { DailyData, DashboardStats, Entity, EXECUTIVE_ENTITY, DEFAULT_REGIONS } from "../types";
-import { parse, format, addDays, isAfter, isBefore, startOfToday } from "date-fns";
+import { parse, format, addDays, isAfter, isBefore, startOfToday, isWeekend } from "date-fns";
+
+const BANK_HOLIDAYS_2026 = [
+  "2026-01-01", "2026-01-19", "2026-02-16", "2026-05-25", "2026-06-19",
+  "2026-07-03", "2026-09-07", "2026-10-12", "2026-11-11", "2026-11-26",
+  "2026-12-25"
+];
+
+const isBusinessDay = (date: Date) => {
+  if (isWeekend(date)) return false;
+  const dateStr = format(date, "yyyy-MM-dd");
+  return !BANK_HOLIDAYS_2026.includes(dateStr);
+};
 
 export function parseLiquidityData(regions: string[] = DEFAULT_REGIONS): Record<string, DailyData[]> {
   const startDate = startOfToday();
-  const daysToGenerate = 365;
+  const businessDaysToGenerate = 260; // ~1 year of business days
 
   const regionDataMap: Record<string, DailyData[]> = {};
 
@@ -12,8 +24,13 @@ export function parseLiquidityData(regions: string[] = DEFAULT_REGIONS): Record<
     regionDataMap[region] = [];
   });
 
-  for (let i = 0; i < daysToGenerate; i++) {
+  let generated = 0;
+  let i = 0;
+  while (generated < businessDaysToGenerate) {
     const current = addDays(startDate, i);
+    i++;
+    if (!isBusinessDay(current)) continue;
+    generated++;
     const dateStr = format(current, "M/d/yyyy");
 
     const emptyReceipts: Record<string, number> = {};

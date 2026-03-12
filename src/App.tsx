@@ -859,8 +859,8 @@ export default function App() {
 
         const next30 = regionData.slice(0, 30);
         const totalOut = next30.reduce((acc, d) => acc + d.cashOut, 0);
-        const dailyBurn = totalOut / 30;
-        const weeklyBurn = dailyBurn * 7;
+        const dailyBurn = next30.length > 0 ? totalOut / next30.length : 0;
+        const weeklyBurn = dailyBurn * 5;
 
         regionalBurnRates.push({
           region: isDepartmentMode ? regionDisplayName(region) : region,
