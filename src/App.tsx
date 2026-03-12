@@ -1192,7 +1192,7 @@ export default function App() {
 
                 <div className="mt-8">
                   <MaximizeWrapper title="Historical Reconciliation">
-                    <ReconciliationTable data={currentData} currency={currency} dateFormat={dateFormat} actualsOverrides={reportData.actualsOverrides[currentEntity] || {}} />
+                    <ReconciliationTable data={currentData} currency={currency} dateFormat={dateFormat} actualsOverrides={reportData.actualsOverrides[currentEntity] || {}} projectionOverrides={reportData.projectionOverrides[currentEntity] || {}} />
                   </MaximizeWrapper>
                 </div>
 
