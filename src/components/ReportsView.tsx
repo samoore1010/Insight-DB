@@ -784,31 +784,65 @@ export default function ReportsView({
     const element = document.getElementById(elementId);
     if (!element) return;
 
+    const uid = '_p' + Date.now();
+
     // Clone the full element into a print wrapper appended to <body>
     const printWrapper = document.createElement('div');
     printWrapper.className = 'print-report-wrapper';
     const cloned = element.cloneNode(true) as HTMLElement;
     cloned.removeAttribute('id'); // avoid duplicate IDs
 
-    // Force all nested elements to be fully visible (no scroll clipping)
-    // BUT preserve explicit dimensions on chart containers and SVGs
-    const chartTags = new Set(['svg', 'path', 'line', 'rect', 'circle', 'g', 'defs', 'lineargradient', 'stop']);
+    // ── 1. Fix SVG gradient ID collisions ──────────────────────────
+    // The original SVG (hidden inside #root) shares gradient IDs with
+    // the clone. Browsers resolve url(#id) to the first match in
+    // document order — the hidden one. Rename all IDs in the clone.
+    cloned.querySelectorAll('linearGradient, radialGradient, clipPath, pattern, mask, filter').forEach(def => {
+      const oldId = def.getAttribute('id');
+      if (!oldId) return;
+      const newId = oldId + uid;
+      def.setAttribute('id', newId);
+      // Update all url(#oldId) references in the clone
+      cloned.querySelectorAll('*').forEach(ref => {
+        const htmlRef = ref as HTMLElement;
+        // Check inline style
+        const style = htmlRef.getAttribute('style') || '';
+        if (style.includes(`url(#${oldId})`)) {
+          htmlRef.setAttribute('style', style.replace(new RegExp(`url\\(#${oldId}\\)`, 'g'), `url(#${newId})`));
+        }
+        // Check SVG attributes (fill, stroke, clip-path, filter, mask)
+        ['fill', 'stroke', 'clip-path', 'filter', 'mask'].forEach(attr => {
+          const val = htmlRef.getAttribute(attr);
+          if (val && val.includes(`url(#${oldId})`)) {
+            htmlRef.setAttribute(attr, val.replace(new RegExp(`url\\(#${oldId}\\)`, 'g'), `url(#${newId})`));
+          }
+        });
+      });
+    });
+
+    // ── 2. Protect chart containers ────────────────────────────────
+    // Mark chart containers and ALL their descendants with data-print-clip
+    // so the CSS rule `overflow: visible !important` does NOT apply to them.
+    // Also freeze their rendered dimensions so nothing collapses.
+    cloned.querySelectorAll('[data-print-chart]').forEach(chart => {
+      const htmlChart = chart as HTMLElement;
+      htmlChart.setAttribute('data-print-clip', '');
+      // Freeze the chart wrapper height from the class (h-72 = 18rem)
+      htmlChart.style.height = '18rem';
+      htmlChart.style.minHeight = '18rem';
+      htmlChart.style.overflow = 'hidden';
+
+      // Protect every child element inside the chart
+      htmlChart.querySelectorAll('*').forEach(child => {
+        (child as HTMLElement).setAttribute('data-print-clip', '');
+      });
+    });
+
+    // ── 3. Force all non-chart elements to be fully visible ────────
     const allElements = cloned.querySelectorAll('*');
     allElements.forEach(el => {
       const htmlEl = el as HTMLElement;
-      const tag = htmlEl.tagName.toLowerCase();
-
-      // Skip SVG internals and Recharts containers — they need fixed dimensions to render lines
-      if (chartTags.has(tag)) return;
-      const isChartContainer = htmlEl.hasAttribute('data-print-chart') ||
-        htmlEl.classList.contains('recharts-responsive-container') ||
-        htmlEl.classList.contains('recharts-wrapper') ||
-        htmlEl.querySelector(':scope > .recharts-responsive-container') !== null ||
-        htmlEl.querySelector(':scope > svg.recharts-surface') !== null;
-      if (isChartContainer) {
-        htmlEl.style.boxShadow = 'none';
-        return;
-      }
+      // Skip anything already protected (charts, cards marked later)
+      if (htmlEl.hasAttribute('data-print-clip')) return;
 
       htmlEl.style.overflow = 'visible';
       htmlEl.style.maxHeight = 'none';
@@ -823,19 +857,15 @@ export default function ReportsView({
     cloned.style.backgroundColor = 'white';
     cloned.style.padding = '1.5cm';
     cloned.style.width = '100%';
-    // Strip box-shadow and border from the outer report container —
-    // the shadow renders as vertical lines on page edges and the
-    // min-height forces a full-page-tall box that creates a blank page
     cloned.style.boxShadow = 'none';
     cloned.style.border = 'none';
     cloned.style.borderRadius = '0';
 
-    // Remove all .page-break divs — empty divs with page-break-before:always
-    // that create blank pages (cover page has one at line 162 of ReportContent)
+    // Remove all .page-break divs (cover page spacers)
     cloned.querySelectorAll('.page-break').forEach(el => el.remove());
 
-    // Remove ALL break/page-break properties from every element first
-    // to start with a completely clean slate
+    // ── 4. Page break rules ────────────────────────────────────────
+    // Clear all break properties first for a clean slate
     cloned.querySelectorAll('*').forEach(el => {
       const s = (el as HTMLElement).style;
       s.pageBreakBefore = '';
@@ -846,37 +876,37 @@ export default function ReportsView({
       s.breakInside = '';
     });
 
-    // Apply break-inside:avoid to report sections so cards/charts
-    // don't get split across page boundaries. Also set a reasonable
-    // margin-bottom so sections space out nicely across pages.
-    cloned.querySelectorAll('.report-section').forEach(el => {
-      const s = (el as HTMLElement).style;
-      s.breakInside = 'avoid';
-      s.pageBreakInside = 'avoid';
-      s.marginBottom = '1cm';
-    });
-
-    // Keep section headers (roman numeral headings with the thick border)
-    // glued to the content that follows — never orphan at page bottom.
+    // Section headers: never orphan at bottom of page
     cloned.querySelectorAll('.border-b-2').forEach(el => {
       const s = (el as HTMLElement).style;
       s.breakAfter = 'avoid';
       s.pageBreakAfter = 'avoid';
     });
 
+    // Grids and chart containers: keep together on one page
+    cloned.querySelectorAll('.grid, [data-print-chart]').forEach(el => {
+      const s = (el as HTMLElement).style;
+      s.breakInside = 'avoid';
+      s.pageBreakInside = 'avoid';
+    });
+
+    // Give report-section a bottom margin for spacing, but do NOT
+    // set break-inside:avoid (sections are too large for one page)
+    cloned.querySelectorAll('.report-section').forEach(el => {
+      (el as HTMLElement).style.marginBottom = '1cm';
+    });
+
+    // ── 5. Cover page ──────────────────────────────────────────────
     const coverPage = cloned.querySelector('.cover-page') as HTMLElement | null;
     if (coverPage) {
       coverPage.style.marginBottom = '0';
       coverPage.style.paddingBottom = '0';
 
-      // Strip space-y so siblings have no auto margins
       const parent = coverPage.parentElement;
       if (parent) {
         parent.className = parent.className.replace(/space-y-\S+/g, '');
       }
 
-      // The ONLY page break: break-before on the first section AFTER the cover.
-      // NEVER use break-after on the cover — it causes a trailing blank page.
       const nextSection = coverPage.nextElementSibling as HTMLElement | null;
       if (nextSection) {
         nextSection.style.pageBreakBefore = 'always';
@@ -886,15 +916,20 @@ export default function ReportsView({
       }
     }
 
-    // Fix data spill in card bubbles: mark card containers so print CSS
-    // keeps overflow:hidden on them, and auto-shrink text that's too wide.
-    // Also prevent cards from splitting across pages.
+    // ── 6. Card overflow & text clipping ───────────────────────────
+    // Mark cards AND all their descendants with data-print-clip so the
+    // CSS overflow:visible !important rule doesn't apply to them.
     cloned.querySelectorAll('.rounded-2xl').forEach(card => {
       const htmlCard = card as HTMLElement;
       htmlCard.setAttribute('data-print-clip', '');
       htmlCard.style.overflow = 'hidden';
       htmlCard.style.breakInside = 'avoid';
       htmlCard.style.pageBreakInside = 'avoid';
+
+      // Propagate data-print-clip to ALL descendants
+      htmlCard.querySelectorAll('*').forEach(child => {
+        (child as HTMLElement).setAttribute('data-print-clip', '');
+      });
 
       // Find large currency value elements inside the card and ensure they fit
       card.querySelectorAll('p, span').forEach(el => {

@@ -325,9 +325,9 @@
   }
 
   /* Nuke overflow and height constraints inside the print wrapper,
-     EXCEPT for card containers that need to clip long numbers */
+     EXCEPT for chart/card containers that need their dimensions preserved */
   .print-report-wrapper,
-  .print-report-wrapper * {
+  .print-report-wrapper *:not([data-print-clip]) {
     max-height: none !important;
     flex-shrink: 0 !important;
   }
