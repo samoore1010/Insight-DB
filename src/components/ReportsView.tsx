@@ -291,10 +291,8 @@ function ReportContent({
               const toX = (i: number) => padL + (plotW / Math.max(chartData.length - 1, 1)) * i;
               const toY = (v: number) => padT + plotH - ((v - yMin) / yRange) * plotH;
 
-              // Build area path (fill) and line path (stroke)
-              const linePoints = chartData.map((d: any, i: number) => `${toX(i)},${toY(d.endingBalance)}`);
-              const linePath = `M${linePoints.join(' L')}`;
-              const areaPath = `${linePath} L${toX(chartData.length - 1)},${toY(0)} L${toX(0)},${toY(0)} Z`;
+              // Build polyline points string
+              const polylinePoints = chartData.map((d: any, i: number) => `${toX(i)},${toY(d.endingBalance)}`).join(' ');
 
               // Y-axis ticks (5 ticks)
               const yTicks = Array.from({ length: 5 }, (_, i) => yMin + (yRange / 4) * i);
@@ -306,9 +304,8 @@ function ReportContent({
               // Zero line Y position
               const zeroY = toY(0);
 
-              // Determine dominant color: green if mostly positive, red if mostly negative
+              // Line color
               const lineColor = dataMin >= 0 ? "#10b981" : dataMax <= 0 ? "#f43f5e" : "#334155";
-              const fillColor = dataMin >= 0 ? "rgba(16,185,129,0.13)" : dataMax <= 0 ? "rgba(244,63,94,0.13)" : "rgba(51,65,85,0.08)";
 
               // Min entry position
               const minIdx = chartData.indexOf(minEntry);
@@ -339,15 +336,19 @@ function ReportContent({
                   );
                 })}
 
-                {/* Area fill */}
-                {chartData.length > 1 && (
-                  <path d={areaPath} fill={fillColor} />
-                )}
-
-                {/* Line stroke */}
-                {chartData.length > 1 && (
-                  <path d={linePath} fill="none" stroke={lineColor} strokeWidth={2.5} strokeLinejoin="round" />
-                )}
+                {/* Line segments (individual lines for html2canvas compatibility) */}
+                {chartData.length > 1 && chartData.map((d: any, i: number) => {
+                  if (i === 0) return null;
+                  const prev = chartData[i - 1];
+                  return (
+                    <line
+                      key={`seg-${i}`}
+                      x1={toX(i - 1)} y1={toY(prev.endingBalance)}
+                      x2={toX(i)} y2={toY(d.endingBalance)}
+                      stroke={lineColor} strokeWidth={2.5}
+                    />
+                  );
+                })}
 
                 {/* $0 reference line */}
                 {hasNegative && zeroY >= padT && zeroY <= padT + plotH && (
