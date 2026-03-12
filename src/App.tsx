@@ -156,7 +156,7 @@ export default function App() {
   // Load department regions when in department mode
   useEffect(() => {
     if (!isDepartmentMode || departments.length === 0) return;
-    const dept = departments.find(d => d.name === deptName);
+    const dept = departments.find(d => d.name.toLowerCase() === deptName.toLowerCase());
     if (dept) {
       const namespacedRegions = dept.regions.map(r => `dept::${deptName}::${r}`);
       setRegions(namespacedRegions);
@@ -1024,7 +1024,7 @@ export default function App() {
       setRegions(newRegions);
 
       // Update department record on server
-      const dept = departments.find(d => d.name === deptName);
+      const dept = departments.find(d => d.name.toLowerCase() === deptName.toLowerCase());
       if (dept) {
         const displayRegions = [...dept.regions, name];
         await handleUpdateDepartmentRegions(dept.id, displayRegions);
@@ -1064,7 +1064,7 @@ export default function App() {
 
     if (isDepartmentMode) {
       // Update department record on server
-      const dept = departments.find(d => d.name === deptName);
+      const dept = departments.find(d => d.name.toLowerCase() === deptName.toLowerCase());
       if (dept) {
         const displayName = regionDisplayName(name);
         const displayRegions = dept.regions.filter(r => r !== displayName);
@@ -1187,7 +1187,16 @@ export default function App() {
     );
   }
 
-  if (!stats || !allAdjustedData) return null;
+  if (!stats || !allAdjustedData) {
+    return (
+      <div className="h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm text-slate-500 dark:text-slate-400">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen bg-slate-50 dark:bg-slate-950 flex overflow-hidden">
