@@ -201,9 +201,9 @@ function ReportContent({
             )}
             {/* Executive Summary */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-10">
-              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Total Available Liquidity</p>
-                <p className="text-2xl font-black text-slate-900 dark:text-white whitespace-nowrap">
+                <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
                   {formatCurrency(allData?.[activeRegion][0]?.endingBalance || 0)}
                 </p>
                 <div className="mt-2 flex items-center gap-1">
@@ -211,10 +211,10 @@ function ReportContent({
                   <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Verified Balance</span>
                 </div>
               </div>
-              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">14-Day Projected Net Flow</p>
                 <p className={clsx(
-                  "text-2xl font-black whitespace-nowrap",
+                  "text-xl sm:text-2xl font-black",
                   (allData?.[activeRegion].slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                 )}>
                   {formatCurrency(allData?.[activeRegion].slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0)}
@@ -223,7 +223,7 @@ function ReportContent({
                   <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Forecasted Trend</span>
                 </div>
               </div>
-              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Treasury Health Status</p>
                 <div className="flex items-center gap-3 mt-1 min-w-0">
                   {metrics?.isHealthy ? (
@@ -999,20 +999,21 @@ export default function ReportsView({
         (child as HTMLElement).setAttribute('data-print-clip', '');
       });
 
-      // Auto-shrink oversized currency values
+      // Auto-shrink oversized currency values so they fit without clipping
       card.querySelectorAll('p, span').forEach(el => {
         const htmlEl = el as HTMLElement;
         const text = htmlEl.textContent || '';
         if (/^\s*[+\-]?\$[\d,]+\s*$/.test(text) && text.length > 8) {
           htmlEl.style.whiteSpace = 'nowrap';
-          htmlEl.style.overflow = 'hidden';
-          htmlEl.style.textOverflow = 'ellipsis';
+          htmlEl.style.overflow = 'visible';
           const digits = text.replace(/[^0-9]/g, '').length;
-          if (digits >= 8) {
-            const currentSize = parseFloat(getComputedStyle(htmlEl).fontSize) || 30;
-            if (currentSize >= 24) {
-              htmlEl.style.fontSize = `${Math.max(16, currentSize * 0.72)}px`;
-            }
+          const currentSize = parseFloat(getComputedStyle(htmlEl).fontSize) || 30;
+          if (digits >= 10) {
+            htmlEl.style.fontSize = `${Math.max(14, currentSize * 0.58)}px`;
+          } else if (digits >= 8) {
+            htmlEl.style.fontSize = `${Math.max(14, currentSize * 0.68)}px`;
+          } else if (digits >= 7) {
+            htmlEl.style.fontSize = `${Math.max(16, currentSize * 0.78)}px`;
           }
         }
       });
