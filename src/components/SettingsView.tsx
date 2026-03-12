@@ -105,7 +105,7 @@ export default function SettingsView({
   const [editLocation, setEditLocation] = useState<string>("executive");
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState("");
-  const [newUserLocation, setNewUserLocation] = useState("executive");
+  const [newUserLocation, setNewUserLocation] = useState(isDepartmentMode ? (currentUser?.location || "executive") : "executive");
 
   // Department management state
   const [newDeptName, setNewDeptName] = useState("");
@@ -113,6 +113,8 @@ export default function SettingsView({
   const [deptError, setDeptError] = useState("");
 
   const isAdmin = currentUser?.role === "admin";
+  const isGlobalAdmin = isAdmin && !isDepartmentMode; // executive admin
+  const isDeptAdmin = isAdmin && isDepartmentMode; // department-scoped admin
 
   const toggleNotification = (key: keyof typeof notifications) => {
     setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
@@ -578,7 +580,7 @@ export default function SettingsView({
           </div>
         </section>
 
-        {/* User Management Section - Admin only */}
+        {/* User Management Section - Admin only (scoped to department for dept admins) */}
         {isAdmin && allUsers && onCreateUser && onUpdateUser && onDeleteUser && (
           <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
@@ -586,14 +588,14 @@ export default function SettingsView({
                 <Users className="w-4 h-4 text-violet-600 dark:text-violet-400" />
               </div>
               <div>
-                <h2 className="font-semibold text-slate-900 dark:text-white">User Management</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Manage users and their region access permissions.</p>
+                <h2 className="font-semibold text-slate-900 dark:text-white">{isDeptAdmin ? `${currentUser?.location} User Management` : "User Management"}</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{isDeptAdmin ? `Manage users within the ${currentUser?.location} department.` : "Manage users and their region access permissions."}</p>
               </div>
             </div>
             <div className="p-6 space-y-4">
-              {/* Existing users */}
+              {/* Existing users — dept admins only see users in their department */}
               <div className="space-y-2">
-                {allUsers.map(user => (
+                {allUsers.filter(u => isGlobalAdmin ? true : u.location === currentUser?.location).map(user => (
                   <div key={user.id} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-3">
@@ -665,6 +667,8 @@ export default function SettingsView({
                     {/* Edit controls when editing */}
                     {editingUserId === user.id && (
                       <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 space-y-3">
+                        {/* Location selector — only global admins can change location */}
+                        {isGlobalAdmin ? (
                         <div>
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Location</p>
                           <div className="flex flex-wrap gap-2">
@@ -693,6 +697,12 @@ export default function SettingsView({
                             ))}
                           </div>
                         </div>
+                        ) : (
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Location</p>
+                          <span className="px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg text-xs font-bold border border-blue-200 dark:border-blue-800">{currentUser?.location}</span>
+                        </div>
+                        )}
                         {editLocation === "executive" && (
                           <div>
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Allowed Regions (empty = all regions)</p>
@@ -778,7 +788,7 @@ export default function SettingsView({
                   <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Role</label>
                     <div className="flex gap-2">
-                      {(["viewer", "admin"] as const).map(role => (
+                      {(isGlobalAdmin ? ["viewer", "admin"] as const : ["viewer"] as const).map(role => (
                         <button
                           key={role}
                           onClick={() => setNewUser(prev => ({ ...prev, role }))}
@@ -795,6 +805,7 @@ export default function SettingsView({
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Location</label>
+                    {isGlobalAdmin ? (
                     <div className="flex flex-wrap gap-2">
                       <button
                         onClick={() => setNewUserLocation("executive")}
@@ -820,6 +831,9 @@ export default function SettingsView({
                         </button>
                       ))}
                     </div>
+                    ) : (
+                    <span className="px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg text-xs font-bold border border-blue-200 dark:border-blue-800 inline-block">{currentUser?.location}</span>
+                    )}
                   </div>
                   {newUserLocation === "executive" && (
                     <div>
@@ -856,7 +870,7 @@ export default function SettingsView({
                         setShowCreateUser(false);
                         setNewUser({ username: "", password: "", displayName: "", role: "viewer" });
                         setNewUserRegions([]);
-                        setNewUserLocation("executive");
+                        setNewUserLocation(isDepartmentMode ? (currentUser?.location || "executive") : "executive");
                       } else {
                         setCreateError(result.error || "Failed to create user");
                       }
@@ -900,7 +914,7 @@ export default function SettingsView({
                 Export
               </button>
             </div>
-            {isAdmin && (
+            {isGlobalAdmin && (
               <div className="flex items-center justify-between p-4 bg-rose-50 dark:bg-rose-900/10 rounded-xl border border-rose-100 dark:border-rose-900/20">
                 <div>
                   <p className="text-sm font-semibold text-rose-900 dark:text-rose-400">Reset All Data</p>
