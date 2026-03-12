@@ -7,6 +7,7 @@ export interface User {
   displayName: string;
   role: "admin" | "viewer";
   allowedRegions: string[]; // empty = all regions
+  location: string; // "executive" or a department name
 }
 
 export interface AuthState {

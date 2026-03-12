@@ -19,10 +19,17 @@ import {
   Users,
   UserPlus,
   Check,
-  LogOut
+  LogOut,
+  Building
 } from "lucide-react";
 import { EXECUTIVE_ENTITY } from "../types";
 import type { User } from "../auth";
+
+interface Department {
+  id: string;
+  name: string;
+  regions: string[];
+}
 
 interface Props {
   theme: 'light' | 'dark' | 'system';
@@ -40,10 +47,15 @@ interface Props {
   onDeleteRegion: (name: string) => void;
   currentUser?: User | null;
   allUsers?: User[];
-  onCreateUser?: (username: string, password: string, displayName: string, role: "admin" | "viewer", allowedRegions: string[]) => Promise<{ success: boolean; error?: string }>;
-  onUpdateUser?: (id: string, updates: { displayName?: string; role?: "admin" | "viewer"; allowedRegions?: string[]; password?: string }) => Promise<{ success: boolean; error?: string }>;
+  onCreateUser?: (username: string, password: string, displayName: string, role: "admin" | "viewer", allowedRegions: string[], location?: string) => Promise<{ success: boolean; error?: string }>;
+  onUpdateUser?: (id: string, updates: { displayName?: string; role?: "admin" | "viewer"; allowedRegions?: string[]; password?: string; location?: string }) => Promise<{ success: boolean; error?: string }>;
   onDeleteUser?: (id: string) => Promise<{ success: boolean; error?: string }>;
   onLogout?: () => void;
+  departments?: Department[];
+  onCreateDepartment?: (name: string) => Promise<{ success: boolean; error?: string }>;
+  onDeleteDepartment?: (id: string) => Promise<{ success: boolean; error?: string }>;
+  isDepartmentMode?: boolean;
+  regionDisplayName?: (region: string) => string;
 }
 
 export default function SettingsView({
@@ -65,7 +77,12 @@ export default function SettingsView({
   onCreateUser,
   onUpdateUser,
   onDeleteUser,
-  onLogout
+  onLogout,
+  departments = [],
+  onCreateDepartment,
+  onDeleteDepartment,
+  isDepartmentMode = false,
+  regionDisplayName = (r) => r
 }: Props) {
   const [notifications, setNotifications] = useState({
     lowBalance: true,
@@ -85,8 +102,15 @@ export default function SettingsView({
   const [createError, setCreateError] = useState("");
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editRegions, setEditRegions] = useState<string[]>([]);
+  const [editLocation, setEditLocation] = useState<string>("executive");
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState("");
+  const [newUserLocation, setNewUserLocation] = useState("executive");
+
+  // Department management state
+  const [newDeptName, setNewDeptName] = useState("");
+  const [confirmDeleteDept, setConfirmDeleteDept] = useState<string | null>(null);
+  const [deptError, setDeptError] = useState("");
 
   const isAdmin = currentUser?.role === "admin";
 
@@ -138,35 +162,37 @@ export default function SettingsView({
       </div>
 
       <div className="space-y-6">
-        {/* Region Management Section - Admin only */}
-        {isAdmin && <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+        {/* Region Management Section - Admin only (or department users managing their own regions) */}
+        {(isAdmin || isDepartmentMode) && <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
           <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
             <div className="w-8 h-8 bg-violet-100 dark:bg-violet-900/30 rounded-lg flex items-center justify-center">
               <MapPin className="w-4 h-4 text-violet-600 dark:text-violet-400" />
             </div>
             <div>
               <h2 className="font-semibold text-slate-900 dark:text-white">Region Management</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Add or remove regional entities. Executive view cannot be removed.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{isDepartmentMode ? "Add or remove regions for your department." : "Add or remove regional entities. Executive view cannot be removed."}</p>
             </div>
           </div>
           <div className="p-6 space-y-4">
             {/* Existing regions list */}
             <div className="space-y-2">
-              {/* Executive — always present, not deletable */}
-              <div className="flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-900/10 rounded-xl border border-emerald-100 dark:border-emerald-900/20">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center">
-                    <Globe className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              {/* Executive — always present, not deletable (only in executive mode) */}
+              {!isDepartmentMode && (
+                <div className="flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-900/10 rounded-xl border border-emerald-100 dark:border-emerald-900/20">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center">
+                      <Globe className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">Executive</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">Consolidated view (all regions)</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">Executive</p>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400">Consolidated view (all regions)</p>
-                  </div>
+                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 px-2 py-1 rounded-md uppercase tracking-wider">
+                    Protected
+                  </span>
                 </div>
-                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 px-2 py-1 rounded-md uppercase tracking-wider">
-                  Protected
-                </span>
-              </div>
+              )}
 
               {/* Dynamic regions */}
               {regions.map(region => (
@@ -175,7 +201,7 @@ export default function SettingsView({
                     <div className="w-8 h-8 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center">
                       <MapPin className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                     </div>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{region}</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{regionDisplayName(region)}</p>
                   </div>
                   {confirmDeleteRegion === region ? (
                     <div className="flex items-center gap-2">
@@ -246,10 +272,113 @@ export default function SettingsView({
             </div>
 
             <p className="text-[10px] text-slate-400 dark:text-slate-500">
-              Adding a region creates a new dashboard tab, initializes default estimates, and includes it in Executive consolidation. Deleting removes all associated data.
+              {isDepartmentMode
+                ? "Adding a region creates a new dashboard tab for this department. Deleting removes all associated data."
+                : "Adding a region creates a new dashboard tab, initializes default estimates, and includes it in Executive consolidation. Deleting removes all associated data."}
             </p>
           </div>
         </section>}
+
+        {/* Department Management Section - Admin only, executive mode */}
+        {isAdmin && !isDepartmentMode && onCreateDepartment && onDeleteDepartment && (
+          <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                <Building className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-slate-900 dark:text-white">Department Management</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Create departments for independent team dashboards. Each department gets its own workspace.</p>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              {departments.length === 0 ? (
+                <p className="text-sm text-slate-400 italic text-center py-4">No departments created yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {departments.map(dept => (
+                    <div key={dept.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                          <Building className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white">{dept.name}</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                            {dept.regions.length === 0 ? "No regions" : `${dept.regions.length} region${dept.regions.length !== 1 ? "s" : ""}: ${dept.regions.join(", ")}`}
+                          </p>
+                        </div>
+                      </div>
+                      {confirmDeleteDept === dept.id ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-rose-600 dark:text-rose-400 font-bold">Delete?</span>
+                          <button
+                            onClick={async () => {
+                              const result = await onDeleteDepartment(dept.id);
+                              if (!result.success) setDeptError(result.error || "Failed");
+                              setConfirmDeleteDept(null);
+                            }}
+                            className="px-2 py-1 bg-rose-600 text-white rounded-md text-[10px] font-bold hover:bg-rose-700 transition-all"
+                          >
+                            Yes
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteDept(null)}
+                            className="px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-md text-[10px] font-bold"
+                          >
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDeleteDept(dept.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {deptError && <p className="text-xs text-rose-500 font-bold">{deptError}</p>}
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={newDeptName}
+                  onChange={(e) => setNewDeptName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newDeptName.trim()) {
+                      onCreateDepartment(newDeptName.trim()).then(r => {
+                        if (r.success) { setNewDeptName(""); setDeptError(""); }
+                        else setDeptError(r.error || "Failed");
+                      });
+                    }
+                  }}
+                  placeholder="New department name..."
+                  className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none dark:text-white placeholder:text-slate-400"
+                />
+                <button
+                  onClick={() => {
+                    if (!newDeptName.trim()) return;
+                    onCreateDepartment(newDeptName.trim()).then(r => {
+                      if (r.success) { setNewDeptName(""); setDeptError(""); }
+                      else setDeptError(r.error || "Failed");
+                    });
+                  }}
+                  disabled={!newDeptName.trim()}
+                  className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Department
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                Departments provide independent dashboard workspaces. Assign users to a department during user creation. Deleting a department removes all its data.
+              </p>
+            </div>
+          </section>
+        )}
 
         {/* Company Branding Section */}
         <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
@@ -473,7 +602,7 @@ export default function SettingsView({
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-slate-900 dark:text-white">{user.displayName}</p>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400">@{user.username} &middot; {user.role === "admin" ? "Admin" : "Viewer"}</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">@{user.username} &middot; {user.role === "admin" ? "Admin" : "Viewer"} &middot; {user.location || "executive"}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -482,7 +611,7 @@ export default function SettingsView({
                             {editingUserId === user.id ? (
                               <button
                                 onClick={async () => {
-                                  await onUpdateUser(user.id, { allowedRegions: editRegions });
+                                  await onUpdateUser(user.id, { allowedRegions: editRegions, location: editLocation });
                                   setEditingUserId(null);
                                 }}
                                 className="px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-[10px] font-bold hover:bg-emerald-700 transition-all flex items-center gap-1"
@@ -492,10 +621,10 @@ export default function SettingsView({
                               </button>
                             ) : (
                               <button
-                                onClick={() => { setEditingUserId(user.id); setEditRegions(user.allowedRegions || []); }}
+                                onClick={() => { setEditingUserId(user.id); setEditRegions(user.allowedRegions || []); setEditLocation(user.location || "executive"); }}
                                 className="px-2.5 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
                               >
-                                Edit Regions
+                                Edit
                               </button>
                             )}
                             {confirmDeleteUser === user.id ? (
@@ -533,32 +662,64 @@ export default function SettingsView({
                       </div>
                     </div>
 
-                    {/* Region toggles when editing */}
+                    {/* Edit controls when editing */}
                     {editingUserId === user.id && (
-                      <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Allowed Regions (empty = all regions)</p>
-                        <div className="flex flex-wrap gap-2">
-                          {regions.map(region => {
-                            const isAllowed = editRegions.includes(region);
-                            return (
+                      <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 space-y-3">
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Location</p>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => setEditLocation("executive")}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                editLocation === "executive"
+                                  ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700"
+                              }`}
+                            >
+                              Executive
+                            </button>
+                            {departments.map(dept => (
                               <button
-                                key={region}
-                                onClick={() => {
-                                  setEditRegions(prev =>
-                                    isAllowed ? prev.filter(r => r !== region) : [...prev, region]
-                                  );
-                                }}
+                                key={dept.id}
+                                onClick={() => setEditLocation(dept.name)}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                  isAllowed
-                                    ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
+                                  editLocation === dept.name
+                                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
                                     : "bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700"
                                 }`}
                               >
-                                {region}
+                                {dept.name}
                               </button>
-                            );
-                          })}
+                            ))}
+                          </div>
                         </div>
+                        {editLocation === "executive" && (
+                          <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Allowed Regions (empty = all regions)</p>
+                            <div className="flex flex-wrap gap-2">
+                              {regions.map(region => {
+                                const isAllowed = editRegions.includes(region);
+                                return (
+                                  <button
+                                    key={region}
+                                    onClick={() => {
+                                      setEditRegions(prev =>
+                                        isAllowed ? prev.filter(r => r !== region) : [...prev, region]
+                                      );
+                                    }}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                      isAllowed
+                                        ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
+                                        : "bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700"
+                                    }`}
+                                  >
+                                    {regionDisplayName(region)}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -633,26 +794,56 @@ export default function SettingsView({
                     </div>
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Allowed Regions (empty = all)</label>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Location</label>
                     <div className="flex flex-wrap gap-2">
-                      {regions.map(region => {
-                        const isSelected = newUserRegions.includes(region);
-                        return (
-                          <button
-                            key={region}
-                            onClick={() => setNewUserRegions(prev => isSelected ? prev.filter(r => r !== region) : [...prev, region])}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                              isSelected
-                                ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
-                                : "bg-white dark:bg-slate-900 text-slate-400 border border-slate-200 dark:border-slate-700"
-                            }`}
-                          >
-                            {region}
-                          </button>
-                        );
-                      })}
+                      <button
+                        onClick={() => setNewUserLocation("executive")}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          newUserLocation === "executive"
+                            ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
+                            : "bg-white dark:bg-slate-900 text-slate-400 border border-slate-200 dark:border-slate-700"
+                        }`}
+                      >
+                        Executive
+                      </button>
+                      {departments.map(dept => (
+                        <button
+                          key={dept.id}
+                          onClick={() => setNewUserLocation(dept.name)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            newUserLocation === dept.name
+                              ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
+                              : "bg-white dark:bg-slate-900 text-slate-400 border border-slate-200 dark:border-slate-700"
+                          }`}
+                        >
+                          {dept.name}
+                        </button>
+                      ))}
                     </div>
                   </div>
+                  {newUserLocation === "executive" && (
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Allowed Regions (empty = all)</label>
+                      <div className="flex flex-wrap gap-2">
+                        {regions.map(region => {
+                          const isSelected = newUserRegions.includes(region);
+                          return (
+                            <button
+                              key={region}
+                              onClick={() => setNewUserRegions(prev => isSelected ? prev.filter(r => r !== region) : [...prev, region])}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                isSelected
+                                  ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
+                                  : "bg-white dark:bg-slate-900 text-slate-400 border border-slate-200 dark:border-slate-700"
+                              }`}
+                            >
+                              {regionDisplayName(region)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                   <button
                     onClick={async () => {
                       setCreateError("");
@@ -660,11 +851,12 @@ export default function SettingsView({
                         setCreateError("All fields are required");
                         return;
                       }
-                      const result = await onCreateUser(newUser.username, newUser.password, newUser.displayName, newUser.role, newUserRegions);
+                      const result = await onCreateUser(newUser.username, newUser.password, newUser.displayName, newUser.role, newUserLocation === "executive" ? newUserRegions : [], newUserLocation);
                       if (result.success) {
                         setShowCreateUser(false);
                         setNewUser({ username: "", password: "", displayName: "", role: "viewer" });
                         setNewUserRegions([]);
+                        setNewUserLocation("executive");
                       } else {
                         setCreateError(result.error || "Failed to create user");
                       }
