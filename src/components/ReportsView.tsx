@@ -987,25 +987,16 @@ export default function ReportsView({
       }
     }
 
-    // ── 6. Card overflow & currency text clipping ──────────────────
+    // ── 6. Card currency text sizing ───────────────────────────────
+    // Auto-shrink oversized currency values so they fit within cards.
+    // Cards use overflow:visible so text is never clipped with ellipsis.
     cloned.querySelectorAll('.rounded-2xl').forEach(card => {
-      const htmlCard = card as HTMLElement;
-      htmlCard.setAttribute('data-print-clip', '');
-      htmlCard.style.overflow = 'hidden';
-
-      // Propagate data-print-clip to ALL descendants so CSS
-      // overflow:visible !important doesn't override them
-      htmlCard.querySelectorAll('*').forEach(child => {
-        (child as HTMLElement).setAttribute('data-print-clip', '');
-      });
-
-      // Auto-shrink oversized currency values so they fit without clipping
       card.querySelectorAll('p, span').forEach(el => {
         const htmlEl = el as HTMLElement;
         const text = htmlEl.textContent || '';
+        // Match currency values like $6,559,275 or -$3,364,275
         if (/^\s*[+\-]?\$[\d,]+\s*$/.test(text) && text.length > 8) {
           htmlEl.style.whiteSpace = 'nowrap';
-          htmlEl.style.overflow = 'visible';
           const digits = text.replace(/[^0-9]/g, '').length;
           const currentSize = parseFloat(getComputedStyle(htmlEl).fontSize) || 30;
           if (digits >= 10) {
