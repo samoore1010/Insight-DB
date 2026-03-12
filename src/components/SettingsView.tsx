@@ -59,6 +59,7 @@ export default function SettingsView({
 
   const [newRegionName, setNewRegionName] = useState("");
   const [confirmDeleteRegion, setConfirmDeleteRegion] = useState<string | null>(null);
+  const [confirmAddRegion, setConfirmAddRegion] = useState(false);
 
   const toggleNotification = (key: keyof typeof notifications) => {
     setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
@@ -86,8 +87,13 @@ export default function SettingsView({
       alert("Region name already exists or is reserved.");
       return;
     }
-    onAddRegion(trimmed);
+    setConfirmAddRegion(true);
+  };
+
+  const handleConfirmAdd = () => {
+    onAddRegion(newRegionName.trim());
     setNewRegionName("");
+    setConfirmAddRegion(false);
   };
 
   const handleConfirmDelete = (name: string) => {
@@ -171,23 +177,43 @@ export default function SettingsView({
             </div>
 
             {/* Add new region */}
-            <div className="flex items-center gap-3 pt-2">
-              <input
-                type="text"
-                value={newRegionName}
-                onChange={(e) => setNewRegionName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleAddRegion(); }}
-                placeholder="New region name..."
-                className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 outline-none dark:text-white placeholder:text-slate-400"
-              />
-              <button
-                onClick={handleAddRegion}
-                disabled={!newRegionName.trim()}
-                className="px-4 py-2.5 bg-violet-600 text-white rounded-xl text-xs font-bold hover:bg-violet-700 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Add Region
-              </button>
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={newRegionName}
+                  onChange={(e) => { setNewRegionName(e.target.value); setConfirmAddRegion(false); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleAddRegion(); }}
+                  placeholder="New region name..."
+                  className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 outline-none dark:text-white placeholder:text-slate-400"
+                />
+                {confirmAddRegion ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-violet-600 dark:text-violet-400 font-bold whitespace-nowrap">Add "{newRegionName.trim()}"?</span>
+                    <button
+                      onClick={handleConfirmAdd}
+                      className="px-3 py-2 bg-violet-600 text-white rounded-lg text-[10px] font-bold hover:bg-violet-700 transition-all"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => setConfirmAddRegion(false)}
+                      className="px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
+                    >
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleAddRegion}
+                    disabled={!newRegionName.trim()}
+                    className="px-4 py-2.5 bg-violet-600 text-white rounded-xl text-xs font-bold hover:bg-violet-700 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Region
+                  </button>
+                )}
+              </div>
             </div>
 
             <p className="text-[10px] text-slate-400 dark:text-slate-500">
