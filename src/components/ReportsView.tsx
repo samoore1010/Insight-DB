@@ -723,17 +723,19 @@ interface Props {
   dateFormat?: string;
   companyLogo?: string | null;
   theme?: 'light' | 'dark' | 'system';
+  readOnly?: boolean;
 }
 
-export default function ReportsView({ 
-  regions, 
-  allData, 
-  reports, 
+export default function ReportsView({
+  regions,
+  allData,
+  reports,
   onReportsChange,
   currency = 'USD',
   dateFormat = 'MM/DD/YYYY',
   companyLogo = null,
-  theme = 'light'
+  theme = 'light',
+  readOnly = false
 }: Props) {
   const entityRegions = regions.filter(r => r !== "Executive");
   const [activeRegion, setActiveRegion] = useState<Entity>(regions[0]);
@@ -1380,8 +1382,8 @@ export default function ReportsView({
         {/* Upload Section */}
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-            <h3 className="font-bold text-slate-900 dark:text-white px-2">Upload Regional Reports</h3>
-            
+            <h3 className="font-bold text-slate-900 dark:text-white px-2">{readOnly ? "Report Types" : "Upload Regional Reports"}</h3>
+
             <div className="space-y-4">
               {[
                 { id: "projection", label: "Revenue Projections", icon: FileUp, color: "emerald", desc: "Forecasted inflows" },
@@ -1391,7 +1393,9 @@ export default function ReportsView({
               ].map((type) => (
                 <button
                   key={type.id}
+                  disabled={readOnly}
                   onClick={() => {
+                    if (readOnly) return;
                     setUploadType(type.id as any);
                     triggerFileInput();
                   }}
@@ -1456,8 +1460,8 @@ export default function ReportsView({
                 <h3 className="font-bold text-slate-900 dark:text-white">Recent Documents - {activeRegion}</h3>
                 <div className="flex items-center gap-4">
                   <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{filteredReports.length} Files</span>
-                  {filteredReports.length > 0 && (
-                    <button 
+                  {filteredReports.length > 0 && !readOnly && (
+                    <button
                       onClick={() => {
                         onReportsChange(activeRegion === "Executive" ? [] : reports.filter(r => r.region !== activeRegion));
                       }}
@@ -1503,12 +1507,12 @@ export default function ReportsView({
                           <button className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 rounded-lg shadow-sm transition-all">
                             <Download className="w-4 h-4" />
                           </button>
-                          <button 
+                          {!readOnly && <button
                             onClick={() => handleDeleteReport(report.id)}
                             className="p-2 text-slate-400 dark:text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
                           >
                             <Trash2 className="w-4 h-4" />
-                          </button>
+                          </button>}
                         </div>
                       </motion.div>
                     ))

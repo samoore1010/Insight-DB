@@ -22,6 +22,7 @@ interface Props {
   currency?: string;
   dateFormat?: string;
   regions?: string[];
+  readOnly?: boolean;
 }
 
 type Timeframe = "1 Day" | "1 Week" | "1 Month";
@@ -134,7 +135,8 @@ export default function CashCalendar({
   isMaximized = false,
   currency = 'USD',
   dateFormat = 'MM/DD/YYYY',
-  regions = []
+  regions = [],
+  readOnly = false
 }: Props) {
   const today = startOfToday();
   const todayStr = format(today, "M/d/yyyy");
@@ -349,6 +351,7 @@ export default function CashCalendar({
   };
 
   const handleAddItem = (date: string, currentItems: DisbursementItem[]) => {
+    if (readOnly) return;
     const newItem: DisbursementItem = {
       id: Math.random().toString(36).substr(2, 9),
       label: "New Item",
@@ -360,10 +363,12 @@ export default function CashCalendar({
   };
 
   const handleRemoveItem = (date: string, currentItems: DisbursementItem[], id: string) => {
+    if (readOnly) return;
     handleUpdateDisbursement(date, currentItems.filter(item => item.id !== id));
   };
 
   const handleItemChange = (date: string, currentItems: DisbursementItem[], id: string, updates: any) => {
+    if (readOnly) return;
     const updated = currentItems.map(item => {
       if (item.id === id) {
         const newItem = { ...item, ...updates };
@@ -387,6 +392,7 @@ export default function CashCalendar({
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
+    if (readOnly) return;
     const { active, over } = event;
     if (over && active.data.current && over.data.current) {
       const fromDate = active.data.current.date;
@@ -428,7 +434,7 @@ export default function CashCalendar({
             </div>
 
             <div className="flex flex-wrap items-center gap-3 sm:gap-6">
-              <button
+              {!readOnly && <button
                 onClick={handleSuggestFixes}
                 disabled={optimizing}
                 className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all ${
@@ -443,7 +449,7 @@ export default function CashCalendar({
                   <Sparkles className="w-3 h-3" />
                 )}
                 {optimizing ? "Analyzing..." : "Suggest Fixes"}
-              </button>
+              </button>}
               <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
                 {(["1 Day", "1 Week", "1 Month"] as Timeframe[]).map((tf) => (
                   <button
@@ -803,13 +809,13 @@ export default function CashCalendar({
                         <div className="flex items-center gap-2">
                           <input 
                             type="text"
-                            disabled={isExecutive}
+                            disabled={isExecutive || readOnly}
                             value={item.label}
                             onChange={(e) => handleItemChange(dayData.date, dayData.disbursements, item.id, { label: e.target.value })}
                             className="flex-1 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-[11px] font-medium text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-emerald-500 outline-none disabled:opacity-50"
                           />
-                          {!isExecutive && (
-                            <button 
+                          {!isExecutive && !readOnly && (
+                            <button
                               onClick={() => handleRemoveItem(dayData.date, dayData.disbursements, item.id)}
                               className="p-1 text-slate-300 dark:text-slate-600 hover:text-rose-500 transition-colors"
                             >
@@ -854,8 +860,8 @@ export default function CashCalendar({
                     </DraggableItem>
                   ))}
                   
-                  {!isExecutive && (
-                    <button 
+                  {!isExecutive && !readOnly && (
+                    <button
                       onClick={() => handleAddItem(dayData.date, dayData.disbursements)}
                       className="w-full py-1.5 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 transition-all flex items-center justify-center gap-1.5"
                     >
@@ -1027,8 +1033,8 @@ export default function CashCalendar({
                           <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                             Net: {formatCurrency(dayData.netFlow, false)}
                           </span>
-                          {!isExecutive && (
-                            <button 
+                          {!isExecutive && !readOnly && (
+                            <button
                               onClick={() => handleAddItem(dayData.date, dayData.disbursements)}
                               className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
                             >
@@ -1050,9 +1056,9 @@ export default function CashCalendar({
                                 className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 group"
                               >
                                 <div className="flex-1 space-y-2 min-w-0">
-                                  <input 
+                                  <input
                                     type="text"
-                                    disabled={isExecutive}
+                                    disabled={isExecutive || readOnly}
                                     value={item.label}
                                     onChange={(e) => handleItemChange(dayData.date, dayData.disbursements, item.id, { label: e.target.value })}
                                     placeholder="Transaction label..."
@@ -1062,7 +1068,7 @@ export default function CashCalendar({
                                     {STATUS_OPTIONS.map(opt => (
                                       <button
                                         key={opt}
-                                        disabled={isExecutive}
+                                        disabled={isExecutive || readOnly}
                                         onClick={() => handleItemChange(dayData.date, dayData.disbursements, item.id, { status: opt })}
                                         className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-bold transition-all ${
                                           (item.status || "Unfunded") === opt 
@@ -1099,7 +1105,7 @@ export default function CashCalendar({
                                     prefix="$"
                                     className={`w-full sm:w-32 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono font-bold focus:ring-2 focus:ring-emerald-500 outline-none disabled:opacity-50 text-right shadow-sm ${item.status === 'Paid' ? 'text-slate-400 dark:text-slate-500 line-through' : 'text-rose-600 dark:text-rose-400'}`}
                                   />
-                                  {!isExecutive && (
+                                  {!isExecutive && !readOnly && (
                                     <button
                                       onClick={() => handleRemoveItem(dayData.date, dayData.disbursements, item.id)}
                                       className="p-2 text-slate-300 dark:text-slate-600 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all sm:opacity-0 sm:group-hover:opacity-100"

@@ -138,8 +138,8 @@ export default function SettingsView({
       </div>
 
       <div className="space-y-6">
-        {/* Region Management Section */}
-        <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+        {/* Region Management Section - Admin only */}
+        {isAdmin && <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
           <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
             <div className="w-8 h-8 bg-violet-100 dark:bg-violet-900/30 rounded-lg flex items-center justify-center">
               <MapPin className="w-4 h-4 text-violet-600 dark:text-violet-400" />
@@ -249,7 +249,7 @@ export default function SettingsView({
               Adding a region creates a new dashboard tab, initializes default estimates, and includes it in Executive consolidation. Deleting removes all associated data.
             </p>
           </div>
-        </section>
+        </section>}
 
         {/* Company Branding Section */}
         <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
@@ -708,18 +708,20 @@ export default function SettingsView({
                 Export
               </button>
             </div>
-            <div className="flex items-center justify-between p-4 bg-rose-50 dark:bg-rose-900/10 rounded-xl border border-rose-100 dark:border-rose-900/20">
-              <div>
-                <p className="text-sm font-semibold text-rose-900 dark:text-rose-400">Reset All Data</p>
-                <p className="text-xs text-rose-600 dark:text-rose-500">Permanently delete all manual overrides and reports</p>
+            {isAdmin && (
+              <div className="flex items-center justify-between p-4 bg-rose-50 dark:bg-rose-900/10 rounded-xl border border-rose-100 dark:border-rose-900/20">
+                <div>
+                  <p className="text-sm font-semibold text-rose-900 dark:text-rose-400">Reset All Data</p>
+                  <p className="text-xs text-rose-600 dark:text-rose-500">Permanently delete all manual overrides and reports</p>
+                </div>
+                <button
+                  onClick={onResetData}
+                  className="px-4 py-2 bg-rose-600 text-white rounded-lg text-xs font-bold hover:bg-rose-700 transition-all"
+                >
+                  Reset
+                </button>
               </div>
-              <button
-                onClick={onResetData}
-                className="px-4 py-2 bg-rose-600 text-white rounded-lg text-xs font-bold hover:bg-rose-700 transition-all"
-              >
-                Reset
-              </button>
-            </div>
+            )}
           </div>
         </section>
 

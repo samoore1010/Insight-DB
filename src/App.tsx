@@ -924,6 +924,7 @@ export default function App() {
   // Filter regions by user permissions
   const hasRegionRestriction = currentUser.allowedRegions && currentUser.allowedRegions.length > 0;
   const canSeeExecutive = !hasRegionRestriction || currentUser.role === "admin";
+  const isViewOnly = currentUser.role === "viewer";
 
   // Redirect if current entity is not accessible
   if (hasRegionRestriction && currentUser.role !== "admin") {
@@ -1143,7 +1144,7 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-3 md:gap-6 flex-shrink-0">
-              <div className="hidden md:flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+              {!isViewOnly && <div className="hidden md:flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
                 <button
                   onClick={() => setIsSimulationMode(!isSimulationMode)}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
@@ -1166,7 +1167,7 @@ export default function App() {
                     <RotateCcw className="w-3 h-3" />
                   </button>
                 )}
-              </div>
+              </div>}
 
               <div className="hidden md:flex items-center gap-2">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Forecast:</span>
@@ -1208,29 +1209,31 @@ export default function App() {
 
           {/* Mobile-only secondary controls bar */}
           <div className="md:hidden flex items-center justify-between px-4 py-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-              <button
-                onClick={() => setIsSimulationMode(!isSimulationMode)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[10px] font-bold transition-all ${
-                  isSimulationMode
-                    ? "bg-amber-500 text-white shadow-md"
-                    : "text-slate-500 dark:text-slate-400"
-                }`}
-              >
-                {isSimulationMode ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                {isSimulationMode ? "Sim On" : "Simulate"}
-              </button>
-              {isSimulationMode && (
+            {!isViewOnly ? (
+              <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
                 <button
-                  onClick={() => setSimulationOverrides({
-                    "Flint": {}, "ISH": {}, "Coldwater": {}, "Chicago": {}
-                  })}
-                  className="p-1 text-slate-400 hover:text-rose-500 rounded transition-all"
+                  onClick={() => setIsSimulationMode(!isSimulationMode)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[10px] font-bold transition-all ${
+                    isSimulationMode
+                      ? "bg-amber-500 text-white shadow-md"
+                      : "text-slate-500 dark:text-slate-400"
+                  }`}
                 >
-                  <RotateCcw className="w-3 h-3" />
+                  {isSimulationMode ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                  {isSimulationMode ? "Sim On" : "Simulate"}
                 </button>
-              )}
-            </div>
+                {isSimulationMode && (
+                  <button
+                    onClick={() => setSimulationOverrides({
+                      "Flint": {}, "ISH": {}, "Coldwater": {}, "Chicago": {}
+                    })}
+                    className="p-1 text-slate-400 hover:text-rose-500 rounded transition-all"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            ) : <div />}
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-bold text-slate-400 uppercase">Forecast:</span>
               <select
@@ -1279,6 +1282,7 @@ export default function App() {
                     balances={manualBalances[currentEntity] || {}}
                     currency={currency}
                     regions={regions}
+                    readOnly={isViewOnly}
                   />
                 </MaximizeWrapper>
 
@@ -1304,6 +1308,7 @@ export default function App() {
                       currency={currency}
                       dateFormat={dateFormat}
                       regions={regions}
+                      readOnly={isViewOnly}
                     />
                   </MaximizeWrapper>
                 </div>
@@ -1328,11 +1333,12 @@ export default function App() {
                 {currentEntity !== "Executive" && (
                   <div className="mt-8">
                     <MaximizeWrapper title="Disbursement Adjustments">
-                      <DisbursementEstimates 
+                      <DisbursementEstimates
                         title={`${currentEntity} Adjustments`}
-                        categories={entityEstimates[currentEntity]} 
-                        onCategoriesChange={(cats) => handleEstimateChange(currentEntity, cats)} 
+                        categories={entityEstimates[currentEntity]}
+                        onCategoriesChange={(cats) => handleEstimateChange(currentEntity, cats)}
                         currency={currency}
+                        readOnly={isViewOnly}
                       />
                     </MaximizeWrapper>
                   </div>
@@ -1347,6 +1353,7 @@ export default function App() {
                 currency={currency}
                 dateFormat={dateFormat}
                 companyLogo={companyLogo}
+                readOnly={isViewOnly}
               />
             ) : activeView === "history" ? (
               <ChangeHistory
