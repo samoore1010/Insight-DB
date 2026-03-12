@@ -20,7 +20,11 @@ export interface EstimateCategory {
   attachments?: Attachment[];
 }
 
-export type Entity = "Flint" | "ISH" | "Coldwater" | "Chicago" | "Executive";
+export type Entity = string;
+
+export const EXECUTIVE_ENTITY = "Executive";
+
+export const DEFAULT_REGIONS: string[] = ["Flint", "ISH", "Coldwater", "Chicago"];
 
 export type DisbursementStatus = "Unfunded" | "Funded" | "Paid";
 export type DisbursementType = "manual" | "estimate";
@@ -45,10 +49,7 @@ export interface DailyData {
   apPayments: number;
   benefits: number;
   otherDisbursements: number;
-  receiptsFlint: number;
-  receiptsISH: number;
-  receiptsColdwater: number;
-  receiptsChicago: number;
+  regionalReceipts: Record<string, number>;
   grants: number;
   disbursements: DisbursementItem[];
   // Reconciliation fields
@@ -89,10 +90,7 @@ export interface DashboardStats {
   regionalLiquidityBreakdown?: { region: string, value: number }[];
   regionalBurnRates?: { region: string, dailyBurn: number, weeklyBurn: number, status: 'stable' | 'warning' | 'critical' }[];
   breakdown14Day: {
-    receiptsFlint: number;
-    receiptsISH: number;
-    receiptsColdwater: number;
-    receiptsChicago: number;
+    regionalReceipts: Record<string, number>;
     grants: number;
     payroll: number;
     benefits: number;

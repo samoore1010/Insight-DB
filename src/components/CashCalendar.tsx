@@ -21,6 +21,7 @@ interface Props {
   isMaximized?: boolean;
   currency?: string;
   dateFormat?: string;
+  regions?: string[];
 }
 
 type Timeframe = "1 Day" | "1 Week" | "1 Month";
@@ -132,7 +133,8 @@ export default function CashCalendar({
   isExecutive, 
   isMaximized = false,
   currency = 'USD',
-  dateFormat = 'MM/DD/YYYY'
+  dateFormat = 'MM/DD/YYYY',
+  regions = []
 }: Props) {
   const today = startOfToday();
   const todayStr = format(today, "M/d/yyyy");
@@ -684,38 +686,16 @@ export default function CashCalendar({
                   {dayData ? (
                     <div className="flex-1 flex flex-col gap-0.5 justify-end overflow-hidden">
                       {/* Inflows */}
-                      {dayData.receiptsFlint > 0 && (
-                        <div className="flex items-center justify-between bg-emerald-50/50 dark:bg-emerald-500/10 px-1 rounded border border-emerald-100/30 dark:border-emerald-500/20">
-                          <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 truncate mr-1">Flint</span>
-                          <span className="text-[9px] font-mono font-bold text-emerald-700 dark:text-emerald-300">
-                            {formatCurrency(dayData.receiptsFlint)}
-                          </span>
-                        </div>
-                      )}
-                      {dayData.receiptsISH > 0 && (
-                        <div className="flex items-center justify-between bg-emerald-50/50 dark:bg-emerald-500/10 px-1 rounded border border-emerald-100/30 dark:border-emerald-500/20">
-                          <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 truncate mr-1">ISH</span>
-                          <span className="text-[9px] font-mono font-bold text-emerald-700 dark:text-emerald-300">
-                            {formatCurrency(dayData.receiptsISH)}
-                          </span>
-                        </div>
-                      )}
-                      {dayData.receiptsColdwater > 0 && (
-                        <div className="flex items-center justify-between bg-emerald-50/50 dark:bg-emerald-500/10 px-1 rounded border border-emerald-100/30 dark:border-emerald-500/20">
-                          <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 truncate mr-1">CW</span>
-                          <span className="text-[9px] font-mono font-bold text-emerald-700 dark:text-emerald-300">
-                            {formatCurrency(dayData.receiptsColdwater)}
-                          </span>
-                        </div>
-                      )}
-                      {dayData.receiptsChicago > 0 && (
-                        <div className="flex items-center justify-between bg-emerald-50/50 dark:bg-emerald-500/10 px-1 rounded border border-emerald-100/30 dark:border-emerald-500/20">
-                          <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 truncate mr-1">Chi</span>
-                          <span className="text-[9px] font-mono font-bold text-emerald-700 dark:text-emerald-300">
-                            {formatCurrency(dayData.receiptsChicago)}
-                          </span>
-                        </div>
-                      )}
+                      {Object.entries(dayData.regionalReceipts).map(([region, value]) => (
+                        value > 0 ? (
+                          <div key={region} className="flex items-center justify-between bg-emerald-50/50 dark:bg-emerald-500/10 px-1 rounded border border-emerald-100/30 dark:border-emerald-500/20">
+                            <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 truncate mr-1">{region}</span>
+                            <span className="text-[9px] font-mono font-bold text-emerald-700 dark:text-emerald-300">
+                              {formatCurrency(value)}
+                            </span>
+                          </div>
+                        ) : null
+                      ))}
                       {dayData.grants > 0 && (
                         <div className="flex items-center justify-between bg-emerald-50/50 dark:bg-emerald-500/10 px-1 rounded border border-emerald-100/30 dark:border-emerald-500/20">
                           <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 truncate mr-1">Grants</span>

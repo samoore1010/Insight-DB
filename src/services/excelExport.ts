@@ -14,10 +14,13 @@ const isBusinessDay = (date: Date) => {
   return !BANK_HOLIDAYS_2026.includes(dateStr);
 };
 
-export const exportLiquidityExcel = (allData: Record<Entity, DailyData[]>, entityName: Entity, type: 'daily' | 'weekly') => {
+export const exportLiquidityExcel = (allData: Record<string, DailyData[]>, entityName: Entity, type: 'daily' | 'weekly') => {
   const data = allData[entityName];
   const today = startOfToday();
   let filteredData: DailyData[] = [];
+
+  // Derive non-Executive region keys from allData
+  const entityRegions = Object.keys(allData).filter(k => k !== "Executive");
 
   if (type === 'daily') {
     const yearEnd = endOfYear(today);
@@ -29,7 +32,7 @@ export const exportLiquidityExcel = (allData: Record<Entity, DailyData[]>, entit
     // Weekly for 13 weeks
     const thirteenWeeksLater = addWeeks(today, 13);
     const weeks: Record<string, DailyData[]> = {};
-    
+
     data.forEach(d => {
       const dDate = parse(d.date, "M/d/yyyy", new Date());
       if ((isSameDay(dDate, today) || isAfter(dDate, today)) && isBefore(dDate, thirteenWeeksLater)) {
@@ -40,6 +43,14 @@ export const exportLiquidityExcel = (allData: Record<Entity, DailyData[]>, entit
     });
 
     filteredData = Object.entries(weeks).map(([date, days]) => {
+      // Aggregate regional receipts across all days in the week
+      const aggregatedReceipts: Record<string, number> = {};
+      days.forEach(d => {
+        Object.entries(d.regionalReceipts).forEach(([region, value]) => {
+          aggregatedReceipts[region] = (aggregatedReceipts[region] || 0) + value;
+        });
+      });
+
       return {
         date,
         cashIn: days.reduce((acc, d) => acc + d.cashIn, 0),
@@ -50,10 +61,7 @@ export const exportLiquidityExcel = (allData: Record<Entity, DailyData[]>, entit
         apPayments: days.reduce((acc, d) => acc + d.apPayments, 0),
         benefits: days.reduce((acc, d) => acc + d.benefits, 0),
         otherDisbursements: days.reduce((acc, d) => acc + d.otherDisbursements, 0),
-        receiptsFlint: days.reduce((acc, d) => acc + d.receiptsFlint, 0),
-        receiptsISH: days.reduce((acc, d) => acc + d.receiptsISH, 0),
-        receiptsColdwater: days.reduce((acc, d) => acc + d.receiptsColdwater, 0),
-        receiptsChicago: days.reduce((acc, d) => acc + d.receiptsChicago, 0),
+        regionalReceipts: aggregatedReceipts,
         grants: days.reduce((acc, d) => acc + d.grants, 0),
         disbursements: days.flatMap(d => d.disbursements)
       };
@@ -68,43 +76,35 @@ export const exportLiquidityExcel = (allData: Record<Entity, DailyData[]>, entit
 
   // Prepare rows
   const rows: any[] = [];
-  
+
   // Header row
   const header = ['', '', '', ...filteredData.map(d => d.date)];
   rows.push(header);
 
   // Cash Receipts Section
   rows.push(['1', 'Cash Receipts', '', ...filteredData.map(() => '')]);
-  
+
   if (entityName === 'Executive') {
-    const regions: Entity[] = ['Flint', 'ISH', 'Coldwater', 'Chicago'];
-    regions.forEach((region, index) => {
+    entityRegions.forEach((region, index) => {
       rows.push([`${index + 2}`, region, '', ...filteredData.map((_, i) => {
         const d = filteredData[i];
         if (type === 'daily') {
           const originalIndex = data.findIndex(day => day.date === d.date);
-          return allData[region][originalIndex].cashIn;
+          return allData[region]?.[originalIndex]?.cashIn || 0;
         } else {
           const weekStart = parse(d.date, "M/d/yyyy", new Date());
           const weekEnd = addDays(weekStart, 6);
-          return allData[region].filter(day => {
+          return (allData[region] || []).filter(day => {
             const dayDate = parse(day.date, "M/d/yyyy", new Date());
             return (isSameDay(dayDate, weekStart) || isAfter(dayDate, weekStart)) && (isBefore(dayDate, weekEnd) || isSameDay(dayDate, weekEnd));
           }).reduce((acc, day) => acc + day.cashIn, 0);
         }
       })]);
     });
-    rows.push([`${regions.length + 2}`, 'Total Cash Receipts', '', ...filteredData.map(d => d.cashIn)]);
-  } else if (entityName === 'Flint') {
-    rows.push(['2', 'Flint', '', ...filteredData.map(d => d.receiptsFlint)]);
-    rows.push(['3', 'Total Cash Receipts', '', ...filteredData.map(d => d.cashIn)]);
-  } else if (entityName === 'ISH') {
-    rows.push(['2', 'ISH', '', ...filteredData.map(d => d.receiptsISH)]);
-    rows.push(['3', 'Total Cash Receipts', '', ...filteredData.map(d => d.cashIn)]);
+    rows.push([`${entityRegions.length + 2}`, 'Total Cash Receipts', '', ...filteredData.map(d => d.cashIn)]);
   } else {
-    rows.push(['2', entityName, '', ...filteredData.map(d => d.cashIn)]);
-    rows.push(['3', '', '', ...filteredData.map(() => '')]);
-    rows.push(['4', 'Total Cash Receipts', '', ...filteredData.map(d => d.cashIn)]);
+    rows.push(['2', entityName, '', ...filteredData.map(d => d.regionalReceipts[entityName] || d.cashIn)]);
+    rows.push(['3', 'Total Cash Receipts', '', ...filteredData.map(d => d.cashIn)]);
   }
 
   rows.push(['', '', '', ...filteredData.map(() => '')]);
@@ -130,14 +130,14 @@ export const exportLiquidityExcel = (allData: Record<Entity, DailyData[]>, entit
   rows.push(['19', 'Credit Cards', '', ...filteredData.map(d => -getDisbursementAmount(d, 'Credit Cards'))]);
   rows.push(['20', 'Insurance', '', ...filteredData.map(d => -getDisbursementAmount(d, 'Insurance'))]);
   rows.push(['21', 'Utilities', '', ...filteredData.map(d => -getDisbursementAmount(d, 'Utilities'))]);
-  
+
   // Calculate Itemized Disbursement (Remainder)
   rows.push(['22', 'Itemized Disbursement', '', ...filteredData.map(d => {
-    const mapped = d.payroll + d.benefits + d.apPayments + 
-      getDisbursementAmount(d, 'Practice Funding') + 
-      getDisbursementAmount(d, 'Facilities / Operating Leases') + 
-      getDisbursementAmount(d, 'Credit Cards') + 
-      getDisbursementAmount(d, 'Insurance') + 
+    const mapped = d.payroll + d.benefits + d.apPayments +
+      getDisbursementAmount(d, 'Practice Funding') +
+      getDisbursementAmount(d, 'Facilities / Operating Leases') +
+      getDisbursementAmount(d, 'Credit Cards') +
+      getDisbursementAmount(d, 'Insurance') +
       getDisbursementAmount(d, 'Utilities');
     return -(d.cashOut - mapped);
   })]);

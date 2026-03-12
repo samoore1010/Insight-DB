@@ -1,82 +1,73 @@
-import { csvParseRows } from "d3-dsv";
-import { DailyData, DashboardStats, Entity } from "../types";
-import { RAW_CSV } from "./rawCsv";
+import { DailyData, DashboardStats, Entity, EXECUTIVE_ENTITY, DEFAULT_REGIONS } from "../types";
 import { parse, format, addDays, isAfter, isBefore, startOfToday } from "date-fns";
 
-export function parseLiquidityData(): Record<Entity, DailyData[]> {
+export function parseLiquidityData(regions: string[] = DEFAULT_REGIONS): Record<string, DailyData[]> {
   const startDate = startOfToday();
   const daysToGenerate = 365;
-  
-  const flintData: DailyData[] = [];
-  const ishData: DailyData[] = [];
-  const coldwaterData: DailyData[] = [];
-  const chicagoData: DailyData[] = [];
 
-  // Starting balances
-  const initialBalances = {
-    flint: 0,
-    ish: 0,
-    coldwater: 0,
-    chicago: 0
-  };
+  const regionDataMap: Record<string, DailyData[]> = {};
+
+  // Initialize data arrays for each region
+  regions.forEach(region => {
+    regionDataMap[region] = [];
+  });
 
   for (let i = 0; i < daysToGenerate; i++) {
     const current = addDays(startDate, i);
     const dateStr = format(current, "M/d/yyyy");
+
+    const emptyReceipts: Record<string, number> = {};
+    regions.forEach(r => { emptyReceipts[r] = 0; });
 
     const base: DailyData = {
       date: dateStr,
       cashIn: 0,
       cashOut: 0,
       netFlow: 0,
-      endingBalance: 0, // Will be calculated in App.tsx
+      endingBalance: 0,
       payroll: 0,
       apPayments: 0,
       benefits: 0,
       otherDisbursements: 0,
-      receiptsFlint: 0,
-      receiptsISH: 0,
-      receiptsColdwater: 0,
-      receiptsChicago: 0,
+      regionalReceipts: { ...emptyReceipts },
       grants: 0,
       disbursements: []
     };
 
-    flintData.push({ ...base, endingBalance: i === 0 ? initialBalances.flint : 0 });
-    ishData.push({ ...base, endingBalance: i === 0 ? initialBalances.ish : 0 });
-    coldwaterData.push({ ...base, endingBalance: i === 0 ? initialBalances.coldwater : 0 });
-    chicagoData.push({ ...base, endingBalance: i === 0 ? initialBalances.chicago : 0 });
+    regions.forEach(region => {
+      regionDataMap[region].push({ ...base, regionalReceipts: { ...emptyReceipts } });
+    });
   }
 
-  const executiveData: DailyData[] = flintData.map((f, i) => {
-    const ish = ishData[i];
-    const cw = coldwaterData[i];
-    const ch = chicagoData[i];
+  // Build Executive consolidated view
+  const executiveData: DailyData[] = regionDataMap[regions[0]]?.map((first, i) => {
+    const emptyReceipts: Record<string, number> = {};
+    regions.forEach(r => { emptyReceipts[r] = 0; });
+
+    let totalBalance = 0;
+    regions.forEach(region => {
+      totalBalance += regionDataMap[region][i].endingBalance;
+    });
+
     return {
-      date: f.date,
+      date: first.date,
       cashIn: 0,
       cashOut: 0,
       netFlow: 0,
-      endingBalance: f.endingBalance + ish.endingBalance + cw.endingBalance + ch.endingBalance,
+      endingBalance: totalBalance,
       payroll: 0,
       apPayments: 0,
       benefits: 0,
       otherDisbursements: 0,
-      receiptsFlint: 0,
-      receiptsISH: 0,
-      receiptsColdwater: 0,
-      receiptsChicago: 0,
+      regionalReceipts: { ...emptyReceipts },
       grants: 0,
       disbursements: []
     };
-  });
+  }) || [];
 
   return {
-    "Flint": flintData,
-    "ISH": ishData,
-    "Coldwater": coldwaterData,
-    "Chicago": chicagoData,
-    "Executive": executiveData
+    ...regionDataMap,
+    [EXECUTIVE_ENTITY]: executiveData
   };
 }
 
@@ -95,7 +86,6 @@ export function calculateStats(data: DailyData[]): DashboardStats {
   let nextNegativeTransaction: any = null;
   const firstNegativeDay = data.find(d => d.endingBalance < 0);
   if (firstNegativeDay) {
-    // Find the largest disbursement on this day
     const largestDisb = [...firstNegativeDay.disbursements].sort((a, b) => b.amount - a.amount)[0];
     if (largestDisb) {
       let region = "Current";
@@ -120,7 +110,6 @@ export function calculateStats(data: DailyData[]): DashboardStats {
   next14Days.forEach(day => {
     day.disbursements.forEach(disb => {
       if (disb.label.toLowerCase().includes("payroll")) {
-        // Extract region if it exists (for Executive view)
         let region = "Current";
         let label = disb.label;
         if (disb.label.includes(":")) {
@@ -128,7 +117,7 @@ export function calculateStats(data: DailyData[]): DashboardStats {
           region = parts[0].trim();
           label = parts[1].trim();
         }
-        
+
         upcomingPayrolls.push({
           region,
           amount: disb.amount,
@@ -137,6 +126,14 @@ export function calculateStats(data: DailyData[]): DashboardStats {
           netAtDate: day.endingBalance
         });
       }
+    });
+  });
+
+  // Aggregate regional receipts across 14-day window
+  const regionalReceipts: Record<string, number> = {};
+  next14Days.forEach(d => {
+    Object.entries(d.regionalReceipts).forEach(([region, value]) => {
+      regionalReceipts[region] = (regionalReceipts[region] || 0) + value;
     });
   });
 
@@ -152,10 +149,7 @@ export function calculateStats(data: DailyData[]): DashboardStats {
     upcomingPayrolls,
     nextNegativeTransaction,
     breakdown14Day: {
-      receiptsFlint: next14Days.reduce((acc, d) => acc + d.receiptsFlint, 0),
-      receiptsISH: next14Days.reduce((acc, d) => acc + d.receiptsISH, 0),
-      receiptsColdwater: next14Days.reduce((acc, d) => acc + d.receiptsColdwater, 0),
-      receiptsChicago: next14Days.reduce((acc, d) => acc + d.receiptsChicago, 0),
+      regionalReceipts,
       grants: next14Days.reduce((acc, d) => acc + d.grants, 0),
       payroll: next14Days.reduce((acc, d) => acc + d.payroll, 0),
       benefits: next14Days.reduce((acc, d) => acc + d.benefits, 0),

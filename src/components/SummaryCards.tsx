@@ -1,4 +1,4 @@
-import { DashboardStats, Entity } from "../types";
+import { DashboardStats, Entity, EXECUTIVE_ENTITY } from "../types";
 import { TrendingUp, TrendingDown, Wallet, Calendar, ArrowUpRight, ArrowDownRight, ChevronDown, ChevronUp, Edit3, Flame, AlertCircle, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useState, useEffect } from "react";
@@ -9,12 +9,13 @@ interface Props {
   stats: DashboardStats;
   currentEntity: Entity;
   onUpdateBalance: (key: string, balance: number) => void;
-  onInternalTransfer?: (from: Exclude<Entity, "Executive">, to: Exclude<Entity, "Executive">, amount: number) => void;
+  onInternalTransfer?: (from: string, to: string, amount: number) => void;
   todaysCashOut: number;
   balances: Record<string, number>;
-  manualBalances?: Record<Exclude<Entity, "Executive">, Record<string, number>>;
+  manualBalances?: Record<string, Record<string, number>>;
   isMaximized?: boolean;
   currency?: string;
+  regions?: string[];
 }
 
 export default function SummaryCards({ 
@@ -26,7 +27,8 @@ export default function SummaryCards({
   balances, 
   manualBalances,
   isMaximized = false,
-  currency = 'USD'
+  currency = 'USD',
+  regions = []
 }: Props) {
   const [isNetFlowExpanded, setIsNetFlowExpanded] = useState(isMaximized);
   const [isLiquidityExpanded, setIsLiquidityExpanded] = useState(isMaximized);
@@ -37,8 +39,8 @@ export default function SummaryCards({
 
   // Transfer Modal State
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
-  const [transferFrom, setTransferFrom] = useState<Exclude<Entity, "Executive"> | "">("");
-  const [transferTo, setTransferTo] = useState<Exclude<Entity, "Executive"> | "">("");
+  const [transferFrom, setTransferFrom] = useState<string>("");
+  const [transferTo, setTransferTo] = useState<string>("");
   const [transferAmount, setTransferAmount] = useState("");
 
   useEffect(() => {
@@ -70,7 +72,7 @@ export default function SummaryCards({
     if (transferFrom && transferTo && transferAmount && onInternalTransfer) {
       const amount = parseFloat(transferAmount);
       if (amount > 0 && transferFrom !== transferTo) {
-        onInternalTransfer(transferFrom as Exclude<Entity, "Executive">, transferTo as Exclude<Entity, "Executive">, amount);
+        onInternalTransfer(transferFrom, transferTo, amount);
         setIsTransferModalOpen(false);
         setTransferAmount("");
         setTransferFrom("");
@@ -80,34 +82,23 @@ export default function SummaryCards({
   };
 
   const getLiquidityBreakdown = () => {
-    switch (currentEntity) {
-      case "Flint":
-        return [
-          { key: "flint", label: "Flint Account", value: balances.flint || 0, type: "neutral", editable: true },
-        ];
-      case "ISH":
-        return [
-          { key: "ish", label: "ISH Account", value: balances.ish || 0, type: "neutral", editable: true },
-        ];
-      case "Chicago":
-        return [
-          { key: "main", label: "Chicago Account", value: balances.main || 0, type: "neutral", editable: true },
-        ];
-      case "Coldwater":
-        return [
-          { key: "main", label: "Coldwater Account", value: balances.main || 0, type: "neutral", editable: true },
-        ];
-      case "Executive":
-      default:
-        // Use the calculated regional breakdown from stats
-        return (stats.regionalLiquidityBreakdown || []).map(item => ({
-          key: item.region.toLowerCase(),
-          label: item.region,
-          value: item.value,
-          type: "neutral",
-          editable: false
-        }));
+    if (currentEntity === EXECUTIVE_ENTITY) {
+      return (stats.regionalLiquidityBreakdown || []).map(item => ({
+        key: item.region.toLowerCase(),
+        label: item.region,
+        value: item.value,
+        type: "neutral",
+        editable: false
+      }));
     }
+    // For any regional entity, show its balance accounts
+    return Object.entries(balances).map(([key, value]) => ({
+      key,
+      label: `${currentEntity} Account`,
+      value: value || 0,
+      type: "neutral",
+      editable: true
+    }));
   };
 
   const liquidityBreakdown = getLiquidityBreakdown();
@@ -122,23 +113,13 @@ export default function SummaryCards({
       { label: "Disbursements: Other Ops", value: -(stats.breakdown14Day.otherDisbursements + stats.breakdown14Day.apPayments), type: "out" },
     ];
 
-    if (currentEntity === "Executive") {
-      return [
-        { label: "Receipts: Flint", value: stats.breakdown14Day.receiptsFlint, type: "in" },
-        { label: "Receipts: ISH", value: stats.breakdown14Day.receiptsISH, type: "in" },
-        { label: "Receipts: Coldwater", value: stats.breakdown14Day.receiptsColdwater, type: "in" },
-        { label: "Receipts: Chicago", value: stats.breakdown14Day.receiptsChicago, type: "in" },
-        ...base
-      ];
+    if (currentEntity === EXECUTIVE_ENTITY) {
+      const receiptItems = Object.entries(stats.breakdown14Day.regionalReceipts).map(([region, value]) => ({
+        label: `Receipts: ${region}`, value, type: "in"
+      }));
+      return [...receiptItems, ...base];
     } else {
-      // For regional tabs, show receipts for that region only
-      let regionalReceipts = 0;
-      switch (currentEntity) {
-        case "Flint": regionalReceipts = stats.breakdown14Day.receiptsFlint; break;
-        case "ISH": regionalReceipts = stats.breakdown14Day.receiptsISH; break;
-        case "Coldwater": regionalReceipts = stats.breakdown14Day.receiptsColdwater; break;
-        case "Chicago": regionalReceipts = stats.breakdown14Day.receiptsChicago; break;
-      }
+      const regionalReceipts = stats.breakdown14Day.regionalReceipts[currentEntity] || 0;
       return [
         { label: `Receipts: ${currentEntity}`, value: regionalReceipts, type: "in" },
         ...base
@@ -521,7 +502,7 @@ export default function SummaryCards({
                       className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 outline-none dark:text-white"
                     >
                       <option value="">Select Region</option>
-                      {["Flint", "ISH", "Coldwater", "Chicago"].map(r => (
+                      {regions.map(r => (
                         <option key={r} value={r}>{r}</option>
                       ))}
                     </select>
@@ -530,12 +511,12 @@ export default function SummaryCards({
                     <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">To Account</label>
                     <select
                       value={transferTo}
-                      onChange={(e) => setTransferTo(e.target.value as any)}
+                      onChange={(e) => setTransferTo(e.target.value)}
                       required
                       className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 outline-none dark:text-white"
                     >
                       <option value="">Select Region</option>
-                      {["Flint", "ISH", "Coldwater", "Chicago"].filter(r => r !== transferFrom).map(r => (
+                      {regions.filter(r => r !== transferFrom).map(r => (
                         <option key={r} value={r}>{r}</option>
                       ))}
                     </select>
