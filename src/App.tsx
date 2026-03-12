@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { parse, differenceInDays, format, startOfToday, addDays, isWeekend, isBefore } from "date-fns";
 import { DailyData, DashboardStats, Entity, DisbursementItem, EstimateCategory, Report, EXECUTIVE_ENTITY, DEFAULT_REGIONS } from "./types";
 import { parseLiquidityData, calculateStats } from "./data/parser";
@@ -232,6 +232,13 @@ export default function App() {
   const [multiEntityData, setMultiEntityData] = useState<Record<Entity, DailyData[]> | null>(null);
   const [currentEntity, setCurrentEntity] = useState<Entity>(EXECUTIVE_ENTITY);
   const [activeView, setActiveView] = useState<"dashboard" | "reports" | "settings" | "history">("dashboard");
+  const mainContentRef = useRef<HTMLElement>(null);
+
+  // Scroll content to top when switching views or entities
+  useEffect(() => {
+    mainContentRef.current?.scrollTo(0, 0);
+  }, [activeView, currentEntity]);
+
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [forecastDays, setForecastDays] = useState(14);
   const [regions, setRegions] = useState<string[]>(() => {
@@ -1576,7 +1583,7 @@ export default function App() {
         </header>
 
         {/* Scrolling Content */}
-        <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950">
+        <main ref={mainContentRef} className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950">
           <div className="px-4 py-8 w-full max-w-[1600px] mx-auto">
             {activeView === "dashboard" ? (
               <div className="mb-8">
