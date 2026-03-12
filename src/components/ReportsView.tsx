@@ -784,65 +784,114 @@ export default function ReportsView({
     const element = document.getElementById(elementId);
     if (!element) return;
 
-    const uid = '_p' + Date.now();
+    // ── 0. Capture chart as image BEFORE cloning ───────────────────
+    // Recharts SVGs depend on gradient/clipPath IDs that collide when
+    // cloned. The bulletproof fix: rasterize charts to canvas first.
+    const chartEl = element.querySelector('[data-print-chart]') as HTMLElement | null;
+    let chartImageDataUrl: string | null = null;
+    let chartWidth = 0;
+    let chartHeight = 0;
+    if (chartEl) {
+      const svg = chartEl.querySelector('svg');
+      if (svg) {
+        chartWidth = svg.clientWidth || svg.getBoundingClientRect().width;
+        chartHeight = svg.clientHeight || svg.getBoundingClientRect().height;
+        try {
+          const serializer = new XMLSerializer();
+          const svgStr = serializer.serializeToString(svg);
+          const canvas = document.createElement('canvas');
+          const scale = 2; // retina quality
+          canvas.width = chartWidth * scale;
+          canvas.height = chartHeight * scale;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.scale(scale, scale);
+            const img = new Image();
+            const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+            img.onload = () => {
+              ctx.drawImage(img, 0, 0, chartWidth, chartHeight);
+              URL.revokeObjectURL(url);
+            };
+            img.src = url;
+            // Synchronous fallback: encode directly
+            chartImageDataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgStr)))}`;
+          }
+        } catch {
+          // If serialization fails, we'll fall back to the gradient fix below
+        }
+      }
+    }
 
     // Clone the full element into a print wrapper appended to <body>
     const printWrapper = document.createElement('div');
     printWrapper.className = 'print-report-wrapper';
     const cloned = element.cloneNode(true) as HTMLElement;
-    cloned.removeAttribute('id'); // avoid duplicate IDs
+    cloned.removeAttribute('id');
 
-    // ── 1. Fix SVG gradient ID collisions ──────────────────────────
-    // The original SVG (hidden inside #root) shares gradient IDs with
-    // the clone. Browsers resolve url(#id) to the first match in
-    // document order — the hidden one. Rename all IDs in the clone.
-    cloned.querySelectorAll('linearGradient, radialGradient, clipPath, pattern, mask, filter').forEach(def => {
-      const oldId = def.getAttribute('id');
-      if (!oldId) return;
-      const newId = oldId + uid;
-      def.setAttribute('id', newId);
-      // Update all url(#oldId) references in the clone
-      cloned.querySelectorAll('*').forEach(ref => {
-        const htmlRef = ref as HTMLElement;
-        // Check inline style
-        const style = htmlRef.getAttribute('style') || '';
-        if (style.includes(`url(#${oldId})`)) {
-          htmlRef.setAttribute('style', style.replace(new RegExp(`url\\(#${oldId}\\)`, 'g'), `url(#${newId})`));
-        }
-        // Check SVG attributes (fill, stroke, clip-path, filter, mask)
-        ['fill', 'stroke', 'clip-path', 'filter', 'mask'].forEach(attr => {
-          const val = htmlRef.getAttribute(attr);
-          if (val && val.includes(`url(#${oldId})`)) {
-            htmlRef.setAttribute(attr, val.replace(new RegExp(`url\\(#${oldId}\\)`, 'g'), `url(#${newId})`));
-          }
+    // ── 1. Fix chart rendering ─────────────────────────────────────
+    // Replace the SVG in the clone with a rasterized <img> to avoid
+    // gradient/clipPath ID collisions entirely.
+    const clonedChart = cloned.querySelector('[data-print-chart]') as HTMLElement | null;
+    if (clonedChart && chartImageDataUrl) {
+      // Remove the h4 heading first so we can re-add it
+      const heading = clonedChart.querySelector('h4');
+      const headingClone = heading ? heading.cloneNode(true) as HTMLElement : null;
+
+      // Replace all chart internals with the rasterized image
+      clonedChart.innerHTML = '';
+      if (headingClone) clonedChart.appendChild(headingClone);
+
+      const img = document.createElement('img');
+      img.src = chartImageDataUrl;
+      img.style.width = `${chartWidth}px`;
+      img.style.height = `${chartHeight}px`;
+      img.style.maxWidth = '100%';
+      img.style.display = 'block';
+      clonedChart.appendChild(img);
+
+      clonedChart.style.height = 'auto';
+      clonedChart.style.minHeight = '0';
+      clonedChart.setAttribute('data-print-clip', '');
+    } else if (clonedChart) {
+      // Fallback: if rasterization failed, at least fix gradient IDs
+      const uid = '_p' + Date.now();
+      clonedChart.querySelectorAll('[id]').forEach(el => {
+        const oldId = el.getAttribute('id')!;
+        const newId = oldId + uid;
+        el.setAttribute('id', newId);
+        // Update references in the entire chart subtree
+        clonedChart.querySelectorAll('*').forEach(ref => {
+          ['fill', 'stroke', 'clip-path', 'filter', 'mask', 'style'].forEach(attr => {
+            const val = ref.getAttribute(attr);
+            if (val && val.includes(`#${oldId}`)) {
+              ref.setAttribute(attr, val.split(`#${oldId}`).join(`#${newId}`));
+            }
+          });
         });
       });
-    });
-
-    // ── 2. Protect chart containers ────────────────────────────────
-    // Mark chart containers and ALL their descendants with data-print-clip
-    // so the CSS rule `overflow: visible !important` does NOT apply to them.
-    // Also freeze their rendered dimensions so nothing collapses.
-    cloned.querySelectorAll('[data-print-chart]').forEach(chart => {
-      const htmlChart = chart as HTMLElement;
-      htmlChart.setAttribute('data-print-clip', '');
-      // Freeze the chart wrapper height from the class (h-72 = 18rem)
-      htmlChart.style.height = '18rem';
-      htmlChart.style.minHeight = '18rem';
-      htmlChart.style.overflow = 'hidden';
-
-      // Protect every child element inside the chart
-      htmlChart.querySelectorAll('*').forEach(child => {
+      // Also remove clipPath references entirely as a safety net
+      clonedChart.querySelectorAll('[clip-path]').forEach(el => {
+        el.removeAttribute('clip-path');
+      });
+      clonedChart.setAttribute('data-print-clip', '');
+      clonedChart.style.height = '18rem';
+      clonedChart.style.minHeight = '18rem';
+      clonedChart.style.overflow = 'hidden';
+      clonedChart.querySelectorAll('*').forEach(child => {
         (child as HTMLElement).setAttribute('data-print-clip', '');
       });
-    });
+    }
 
-    // ── 3. Force all non-chart elements to be fully visible ────────
-    const allElements = cloned.querySelectorAll('*');
-    allElements.forEach(el => {
+    // ── 2. Force all elements to be fully visible ──────────────────
+    // Skip SVG internals and protected elements
+    const svgTags = new Set(['svg', 'path', 'line', 'rect', 'circle', 'g', 'defs',
+      'lineargradient', 'stop', 'clippath', 'text', 'tspan', 'use']);
+    cloned.querySelectorAll('*').forEach(el => {
       const htmlEl = el as HTMLElement;
-      // Skip anything already protected (charts, cards marked later)
       if (htmlEl.hasAttribute('data-print-clip')) return;
+      if (svgTags.has(htmlEl.tagName.toLowerCase())) return;
+      if (htmlEl.closest('[data-print-chart]')) return;
 
       htmlEl.style.overflow = 'visible';
       htmlEl.style.maxHeight = 'none';
@@ -864,8 +913,24 @@ export default function ReportsView({
     // Remove all .page-break divs (cover page spacers)
     cloned.querySelectorAll('.page-break').forEach(el => el.remove());
 
+    // ── 3. Fix "Action Required" / "Optimal" text overflow ─────────
+    // Directly find the health status text and force it to fit.
+    cloned.querySelectorAll('span').forEach(span => {
+      const text = (span.textContent || '').trim();
+      if (text === 'Action Required' || text === 'Optimal') {
+        const s = (span as HTMLElement).style;
+        s.fontSize = '11px';
+        s.whiteSpace = 'nowrap';
+        s.overflow = 'hidden';
+        s.textOverflow = 'ellipsis';
+        s.display = 'inline-block';
+        s.maxWidth = '140px';
+        s.lineHeight = '1.2';
+      }
+    });
+
     // ── 4. Page break rules ────────────────────────────────────────
-    // Clear all break properties first for a clean slate
+    // Clear all break properties first
     cloned.querySelectorAll('*').forEach(el => {
       const s = (el as HTMLElement).style;
       s.pageBreakBefore = '';
@@ -883,15 +948,21 @@ export default function ReportsView({
       s.pageBreakAfter = 'avoid';
     });
 
-    // Grids and chart containers: keep together on one page
-    cloned.querySelectorAll('.grid, [data-print-chart]').forEach(el => {
+    // Grids, chart containers, and cards: keep together on one page
+    cloned.querySelectorAll('.grid, [data-print-chart], .rounded-2xl, .rounded-3xl').forEach(el => {
       const s = (el as HTMLElement).style;
       s.breakInside = 'avoid';
       s.pageBreakInside = 'avoid';
     });
 
-    // Give report-section a bottom margin for spacing, but do NOT
-    // set break-inside:avoid (sections are too large for one page)
+    // Tables: allow rows to break but keep header groups
+    cloned.querySelectorAll('table').forEach(el => {
+      const s = (el as HTMLElement).style;
+      s.breakInside = 'auto';
+      s.pageBreakInside = 'auto';
+    });
+
+    // Report sections: spacing only
     cloned.querySelectorAll('.report-section').forEach(el => {
       (el as HTMLElement).style.marginBottom = '1cm';
     });
@@ -916,34 +987,28 @@ export default function ReportsView({
       }
     }
 
-    // ── 6. Card overflow & text clipping ───────────────────────────
-    // Mark cards AND all their descendants with data-print-clip so the
-    // CSS overflow:visible !important rule doesn't apply to them.
+    // ── 6. Card overflow & currency text clipping ──────────────────
     cloned.querySelectorAll('.rounded-2xl').forEach(card => {
       const htmlCard = card as HTMLElement;
       htmlCard.setAttribute('data-print-clip', '');
       htmlCard.style.overflow = 'hidden';
-      htmlCard.style.breakInside = 'avoid';
-      htmlCard.style.pageBreakInside = 'avoid';
 
-      // Propagate data-print-clip to ALL descendants
+      // Propagate data-print-clip to ALL descendants so CSS
+      // overflow:visible !important doesn't override them
       htmlCard.querySelectorAll('*').forEach(child => {
         (child as HTMLElement).setAttribute('data-print-clip', '');
       });
 
-      // Find large currency value elements inside the card and ensure they fit
+      // Auto-shrink oversized currency values
       card.querySelectorAll('p, span').forEach(el => {
         const htmlEl = el as HTMLElement;
         const text = htmlEl.textContent || '';
-        // Match dollar values: $1,234,567 or similar
         if (/^\s*[+\-]?\$[\d,]+\s*$/.test(text) && text.length > 8) {
           htmlEl.style.whiteSpace = 'nowrap';
           htmlEl.style.overflow = 'hidden';
           htmlEl.style.textOverflow = 'ellipsis';
-          // Scale down oversized text: if the number has 7+ digits, shrink the font
           const digits = text.replace(/[^0-9]/g, '').length;
           if (digits >= 8) {
-            // For 8+ digit numbers in cards, use a smaller font that fits
             const currentSize = parseFloat(getComputedStyle(htmlEl).fontSize) || 30;
             if (currentSize >= 24) {
               htmlEl.style.fontSize = `${Math.max(16, currentSize * 0.72)}px`;
