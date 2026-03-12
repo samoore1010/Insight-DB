@@ -160,6 +160,28 @@ export default function App() {
     if (dept) {
       const namespacedRegions = dept.regions.map(r => `dept::${deptName}::${r}`);
       setRegions(namespacedRegions);
+
+      // Initialize state maps for each department region
+      const newEstimates: Record<string, any> = {};
+      const newOverrides: Record<string, any> = {};
+      const newBalances: Record<string, any> = {};
+      const newSimOverrides: Record<string, any> = {};
+      namespacedRegions.forEach(r => {
+        newEstimates[r] = makeDefaultEstimates(r);
+        newOverrides[r] = {};
+        newBalances[r] = { main: 0 };
+        newSimOverrides[r] = {};
+      });
+      setEntityEstimates(prev => ({ ...prev, ...newEstimates }));
+      setManualOverrides(prev => ({ ...prev, ...newOverrides }));
+      setManualBalances(prev => ({ ...prev, ...newBalances }));
+      setSimulationOverrides(prev => ({ ...prev, ...newSimOverrides }));
+
+      // Set the current entity to the first department region
+      if (namespacedRegions.length > 0) {
+        setCurrentEntity(namespacedRegions[0] as Entity);
+      }
+
       // Initialize parser data for department regions
       const parsed = parseLiquidityData(namespacedRegions);
       setMultiEntityData(parsed);
@@ -768,7 +790,7 @@ export default function App() {
 
   const currentData = useMemo(() => {
     if (!allAdjustedData) return [];
-    return allAdjustedData[currentEntity];
+    return allAdjustedData[currentEntity] || [];
   }, [allAdjustedData, currentEntity]);
 
   const stats = useMemo(() => {
