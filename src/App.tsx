@@ -58,19 +58,11 @@ export default function App() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password, location })
       });
       const data = await res.json();
       if (!res.ok) return { success: false, error: data.error || "Login failed" };
       const user = data.user;
-      // Admin can log in to any location; non-admin must match their assigned location
-      if (location && user.role !== "admin" && user.location !== location) {
-        return { success: false, error: `You are not authorized for the ${location} dashboard` };
-      }
-      // For admin, override location to what they selected on login
-      if (location && user.role === "admin") {
-        user.location = location;
-      }
       setCurrentUser(user);
       sessionStorage.setItem("authUser", JSON.stringify(user));
       return { success: true };
