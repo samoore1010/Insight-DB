@@ -129,6 +129,7 @@ export default function App() {
   const isDepartmentMode = currentUser ? currentUser.location !== "executive" : false;
   const deptName = currentUser?.location || "executive";
   const deptPrefix = isDepartmentMode ? `dept::${deptName}::` : "";
+  const deptConsolidatedKey = isDepartmentMode ? `dept::${deptName}::_consolidated` : "";
 
   // Helper: get display name for a region (strips dept prefix)
   const regionDisplayName = useCallback((region: string) => {
@@ -177,9 +178,9 @@ export default function App() {
       setManualBalances(prev => ({ ...prev, ...newBalances }));
       setSimulationOverrides(prev => ({ ...prev, ...newSimOverrides }));
 
-      // Set the current entity to the first department region
+      // Set the current entity to the department consolidated view
       if (namespacedRegions.length > 0) {
-        setCurrentEntity(namespacedRegions[0] as Entity);
+        setCurrentEntity(`dept::${deptName}::_consolidated` as Entity);
       }
 
       // Initialize parser data for department regions
@@ -731,9 +732,58 @@ export default function App() {
       }
     });
 
-    // In department mode, no Executive consolidated view
+    // In department mode, build a department-level consolidated view (siloed)
     if (isDepartmentMode) {
-      return regionAdjusted;
+      const firstRegion = regions[0];
+      const firstData = regionAdjusted[firstRegion];
+      if (!firstData) return regionAdjusted;
+
+      const deptConsolidatedKey = `dept::${deptName}::_consolidated`;
+      const deptExecAdj: DailyData[] = firstData.map((_, i) => {
+        const consolidatedDisbursements: DisbursementItem[] = [];
+        const consolidatedReceipts: Record<string, number> = {};
+
+        let cashIn = 0, cashOut = 0, netFlow = 0, endingBalance = 0;
+        let payroll = 0, apPayments = 0, benefits = 0, otherDisbursements = 0, grants = 0;
+
+        regions.forEach(region => {
+          const rd = regionAdjusted[region]?.[i];
+          if (!rd) return;
+          cashIn += rd.cashIn;
+          cashOut += rd.cashOut;
+          netFlow += rd.netFlow;
+          endingBalance += rd.endingBalance;
+          payroll += rd.payroll;
+          apPayments += rd.apPayments;
+          benefits += rd.benefits;
+          otherDisbursements += rd.otherDisbursements;
+          grants += rd.grants;
+          consolidatedReceipts[region] = rd.regionalReceipts[region] || 0;
+          consolidatedDisbursements.push(
+            ...rd.disbursements.map(d => ({ ...d, label: `${regionDisplayName(region)}: ${d.label}` }))
+          );
+        });
+
+        return {
+          date: firstData[i].date,
+          cashIn,
+          cashOut,
+          netFlow,
+          endingBalance,
+          payroll,
+          apPayments,
+          benefits,
+          otherDisbursements,
+          regionalReceipts: consolidatedReceipts,
+          grants,
+          disbursements: consolidatedDisbursements
+        };
+      });
+
+      return {
+        ...regionAdjusted,
+        [deptConsolidatedKey]: deptExecAdj
+      };
     }
 
     // Build Executive consolidated view
@@ -786,7 +836,7 @@ export default function App() {
       ...regionAdjusted,
       [EXECUTIVE_ENTITY]: execAdj
     };
-  }, [multiEntityData, entityEstimates, manualOverrides, manualBalances, simulationOverrides, reportData, regions, isDepartmentMode]);
+  }, [multiEntityData, entityEstimates, manualOverrides, manualBalances, simulationOverrides, reportData, regions, isDepartmentMode, deptName, regionDisplayName]);
 
   const currentData = useMemo(() => {
     if (!allAdjustedData) return [];
@@ -797,7 +847,8 @@ export default function App() {
     if (currentData.length === 0) return null;
     const baseStats = calculateStats(currentData);
     
-    if (currentEntity === EXECUTIVE_ENTITY && allAdjustedData) {
+    const isConsolidatedView = currentEntity === EXECUTIVE_ENTITY || (isDepartmentMode && currentEntity === deptConsolidatedKey);
+    if (isConsolidatedView && allAdjustedData) {
       const regionalNegatives: any[] = [];
       const regionalBurnRates: any[] = [];
 
@@ -812,7 +863,7 @@ export default function App() {
         const weeklyBurn = dailyBurn * 7;
 
         regionalBurnRates.push({
-          region,
+          region: isDepartmentMode ? regionDisplayName(region) : region,
           dailyBurn,
           weeklyBurn,
           status: dailyBurn > 100000 ? 'critical' : dailyBurn > 50000 ? 'warning' : 'stable'
@@ -821,7 +872,7 @@ export default function App() {
         if (regionStats.nextNegativeTransaction) {
           regionalNegatives.push({
             ...regionStats.nextNegativeTransaction,
-            region
+            region: isDepartmentMode ? regionDisplayName(region) : region
           });
         }
       });
@@ -829,13 +880,13 @@ export default function App() {
       baseStats.regionalBurnRates = regionalBurnRates;
 
       baseStats.regionalLiquidityBreakdown = regions.map(region => ({
-        region,
+        region: isDepartmentMode ? regionDisplayName(region) : region,
         value: allAdjustedData[region]?.[0]?.endingBalance || 0
       }));
     }
     
     return baseStats;
-  }, [currentData, currentEntity, allAdjustedData]);
+  }, [currentData, currentEntity, allAdjustedData, isDepartmentMode, deptConsolidatedKey, regionDisplayName]);
 
   const handleEstimateChange = (entity: string, newCategories: EstimateCategory[]) => {
     setEntityEstimates(prev => ({
@@ -1104,7 +1155,7 @@ export default function App() {
 
     // If currently viewing the deleted region, switch
     if (currentEntity === name) {
-      setCurrentEntity(isDepartmentMode ? (newRegions[0] || "") : EXECUTIVE_ENTITY);
+      setCurrentEntity(isDepartmentMode ? (`dept::${deptName}::_consolidated` as Entity) : EXECUTIVE_ENTITY);
     }
 
     // Regenerate parser data without the removed region
@@ -1124,10 +1175,10 @@ export default function App() {
 
   // Redirect if current entity is not accessible
   if (isDepartmentMode) {
-    // Department mode: no Executive entity, redirect to first region or stay empty
-    if (currentEntity === EXECUTIVE_ENTITY || !regions.includes(currentEntity)) {
-      if (regions.length > 0 && currentEntity !== regions[0]) {
-        setCurrentEntity(regions[0]);
+    // Department mode: default to department consolidated view
+    if (currentEntity === EXECUTIVE_ENTITY || (!regions.includes(currentEntity) && currentEntity !== deptConsolidatedKey)) {
+      if (regions.length > 0 && currentEntity !== deptConsolidatedKey) {
+        setCurrentEntity(deptConsolidatedKey as Entity);
       }
     }
   } else if (hasRegionRestriction && currentUser.role !== "admin") {
@@ -1147,6 +1198,7 @@ export default function App() {
 
   const navigation = [
     ...(canSeeExecutive ? [{ id: EXECUTIVE_ENTITY, label: "Executive View", icon: Earth }] : []),
+    ...(isDepartmentMode && regions.length > 0 ? [{ id: deptConsolidatedKey, label: `${deptName} Overview`, icon: Earth }] : []),
     ...visibleRegions.map(r => ({ id: r, label: isDepartmentMode ? regionDisplayName(r) : r, icon: Building2 })),
   ];
 
@@ -1232,7 +1284,7 @@ export default function App() {
         </div>
 
         <nav className="flex-1 p-4 space-y-1">
-          <div className="px-4 py-2 text-[10px] font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest">{isDepartmentMode ? "Regions" : "Dashboards"}</div>
+          <div className="px-4 py-2 text-[10px] font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest">Dashboards</div>
           {navigation.map((item) => (
             <button
               key={item.id}
