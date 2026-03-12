@@ -784,31 +784,114 @@ export default function ReportsView({
     const element = document.getElementById(elementId);
     if (!element) return;
 
+    // ── 0. Capture chart as image BEFORE cloning ───────────────────
+    // Recharts SVGs depend on gradient/clipPath IDs that collide when
+    // cloned. The bulletproof fix: rasterize charts to canvas first.
+    const chartEl = element.querySelector('[data-print-chart]') as HTMLElement | null;
+    let chartImageDataUrl: string | null = null;
+    let chartWidth = 0;
+    let chartHeight = 0;
+    if (chartEl) {
+      const svg = chartEl.querySelector('svg');
+      if (svg) {
+        chartWidth = svg.clientWidth || svg.getBoundingClientRect().width;
+        chartHeight = svg.clientHeight || svg.getBoundingClientRect().height;
+        try {
+          const serializer = new XMLSerializer();
+          const svgStr = serializer.serializeToString(svg);
+          const canvas = document.createElement('canvas');
+          const scale = 2; // retina quality
+          canvas.width = chartWidth * scale;
+          canvas.height = chartHeight * scale;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.scale(scale, scale);
+            const img = new Image();
+            const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+            img.onload = () => {
+              ctx.drawImage(img, 0, 0, chartWidth, chartHeight);
+              URL.revokeObjectURL(url);
+            };
+            img.src = url;
+            // Synchronous fallback: encode directly
+            chartImageDataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgStr)))}`;
+          }
+        } catch {
+          // If serialization fails, we'll fall back to the gradient fix below
+        }
+      }
+    }
+
     // Clone the full element into a print wrapper appended to <body>
     const printWrapper = document.createElement('div');
     printWrapper.className = 'print-report-wrapper';
     const cloned = element.cloneNode(true) as HTMLElement;
-    cloned.removeAttribute('id'); // avoid duplicate IDs
+    cloned.removeAttribute('id');
 
-    // Force all nested elements to be fully visible (no scroll clipping)
-    // BUT preserve explicit dimensions on chart containers and SVGs
-    const chartTags = new Set(['svg', 'path', 'line', 'rect', 'circle', 'g', 'defs', 'lineargradient', 'stop']);
-    const allElements = cloned.querySelectorAll('*');
-    allElements.forEach(el => {
+    // ── 1. Fix chart rendering ─────────────────────────────────────
+    // Replace the SVG in the clone with a rasterized <img> to avoid
+    // gradient/clipPath ID collisions entirely.
+    const clonedChart = cloned.querySelector('[data-print-chart]') as HTMLElement | null;
+    if (clonedChart && chartImageDataUrl) {
+      // Remove the h4 heading first so we can re-add it
+      const heading = clonedChart.querySelector('h4');
+      const headingClone = heading ? heading.cloneNode(true) as HTMLElement : null;
+
+      // Replace all chart internals with the rasterized image
+      clonedChart.innerHTML = '';
+      if (headingClone) clonedChart.appendChild(headingClone);
+
+      const img = document.createElement('img');
+      img.src = chartImageDataUrl;
+      img.style.width = `${chartWidth}px`;
+      img.style.height = `${chartHeight}px`;
+      img.style.maxWidth = '100%';
+      img.style.display = 'block';
+      clonedChart.appendChild(img);
+
+      clonedChart.style.height = 'auto';
+      clonedChart.style.minHeight = '0';
+      clonedChart.setAttribute('data-print-clip', '');
+    } else if (clonedChart) {
+      // Fallback: if rasterization failed, at least fix gradient IDs
+      const uid = '_p' + Date.now();
+      clonedChart.querySelectorAll('[id]').forEach(el => {
+        const oldId = el.getAttribute('id')!;
+        const newId = oldId + uid;
+        el.setAttribute('id', newId);
+        // Update references in the entire chart subtree
+        clonedChart.querySelectorAll('*').forEach(ref => {
+          ['fill', 'stroke', 'clip-path', 'filter', 'mask', 'style'].forEach(attr => {
+            const val = ref.getAttribute(attr);
+            if (val && val.includes(`#${oldId}`)) {
+              ref.setAttribute(attr, val.split(`#${oldId}`).join(`#${newId}`));
+            }
+          });
+        });
+      });
+      // Also remove clipPath references entirely as a safety net
+      clonedChart.querySelectorAll('[clip-path]').forEach(el => {
+        el.removeAttribute('clip-path');
+      });
+      clonedChart.setAttribute('data-print-clip', '');
+      clonedChart.style.height = '18rem';
+      clonedChart.style.minHeight = '18rem';
+      clonedChart.style.overflow = 'hidden';
+      clonedChart.querySelectorAll('*').forEach(child => {
+        (child as HTMLElement).setAttribute('data-print-clip', '');
+      });
+    }
+
+    // ── 2. Force all elements to be fully visible ──────────────────
+    // Skip SVG internals and protected elements
+    const svgTags = new Set(['svg', 'path', 'line', 'rect', 'circle', 'g', 'defs',
+      'lineargradient', 'stop', 'clippath', 'text', 'tspan', 'use']);
+    cloned.querySelectorAll('*').forEach(el => {
       const htmlEl = el as HTMLElement;
-      const tag = htmlEl.tagName.toLowerCase();
-
-      // Skip SVG internals and Recharts containers — they need fixed dimensions to render lines
-      if (chartTags.has(tag)) return;
-      const isChartContainer = htmlEl.hasAttribute('data-print-chart') ||
-        htmlEl.classList.contains('recharts-responsive-container') ||
-        htmlEl.classList.contains('recharts-wrapper') ||
-        htmlEl.querySelector(':scope > .recharts-responsive-container') !== null ||
-        htmlEl.querySelector(':scope > svg.recharts-surface') !== null;
-      if (isChartContainer) {
-        htmlEl.style.boxShadow = 'none';
-        return;
-      }
+      if (htmlEl.hasAttribute('data-print-clip')) return;
+      if (svgTags.has(htmlEl.tagName.toLowerCase())) return;
+      if (htmlEl.closest('[data-print-chart]')) return;
 
       htmlEl.style.overflow = 'visible';
       htmlEl.style.maxHeight = 'none';
@@ -823,19 +906,31 @@ export default function ReportsView({
     cloned.style.backgroundColor = 'white';
     cloned.style.padding = '1.5cm';
     cloned.style.width = '100%';
-    // Strip box-shadow and border from the outer report container —
-    // the shadow renders as vertical lines on page edges and the
-    // min-height forces a full-page-tall box that creates a blank page
     cloned.style.boxShadow = 'none';
     cloned.style.border = 'none';
     cloned.style.borderRadius = '0';
 
-    // Remove all .page-break divs — empty divs with page-break-before:always
-    // that create blank pages (cover page has one at line 162 of ReportContent)
+    // Remove all .page-break divs (cover page spacers)
     cloned.querySelectorAll('.page-break').forEach(el => el.remove());
 
-    // Remove ALL break/page-break properties from every element first
-    // to start with a completely clean slate
+    // ── 3. Fix "Action Required" / "Optimal" text overflow ─────────
+    // Directly find the health status text and force it to fit.
+    cloned.querySelectorAll('span').forEach(span => {
+      const text = (span.textContent || '').trim();
+      if (text === 'Action Required' || text === 'Optimal') {
+        const s = (span as HTMLElement).style;
+        s.fontSize = '11px';
+        s.whiteSpace = 'nowrap';
+        s.overflow = 'hidden';
+        s.textOverflow = 'ellipsis';
+        s.display = 'inline-block';
+        s.maxWidth = '140px';
+        s.lineHeight = '1.2';
+      }
+    });
+
+    // ── 4. Page break rules ────────────────────────────────────────
+    // Clear all break properties first
     cloned.querySelectorAll('*').forEach(el => {
       const s = (el as HTMLElement).style;
       s.pageBreakBefore = '';
@@ -846,37 +941,43 @@ export default function ReportsView({
       s.breakInside = '';
     });
 
-    // Apply break-inside:avoid to report sections so cards/charts
-    // don't get split across page boundaries. Also set a reasonable
-    // margin-bottom so sections space out nicely across pages.
-    cloned.querySelectorAll('.report-section').forEach(el => {
-      const s = (el as HTMLElement).style;
-      s.breakInside = 'avoid';
-      s.pageBreakInside = 'avoid';
-      s.marginBottom = '1cm';
-    });
-
-    // Keep section headers (roman numeral headings with the thick border)
-    // glued to the content that follows — never orphan at page bottom.
+    // Section headers: never orphan at bottom of page
     cloned.querySelectorAll('.border-b-2').forEach(el => {
       const s = (el as HTMLElement).style;
       s.breakAfter = 'avoid';
       s.pageBreakAfter = 'avoid';
     });
 
+    // Grids, chart containers, and cards: keep together on one page
+    cloned.querySelectorAll('.grid, [data-print-chart], .rounded-2xl, .rounded-3xl').forEach(el => {
+      const s = (el as HTMLElement).style;
+      s.breakInside = 'avoid';
+      s.pageBreakInside = 'avoid';
+    });
+
+    // Tables: allow rows to break but keep header groups
+    cloned.querySelectorAll('table').forEach(el => {
+      const s = (el as HTMLElement).style;
+      s.breakInside = 'auto';
+      s.pageBreakInside = 'auto';
+    });
+
+    // Report sections: spacing only
+    cloned.querySelectorAll('.report-section').forEach(el => {
+      (el as HTMLElement).style.marginBottom = '1cm';
+    });
+
+    // ── 5. Cover page ──────────────────────────────────────────────
     const coverPage = cloned.querySelector('.cover-page') as HTMLElement | null;
     if (coverPage) {
       coverPage.style.marginBottom = '0';
       coverPage.style.paddingBottom = '0';
 
-      // Strip space-y so siblings have no auto margins
       const parent = coverPage.parentElement;
       if (parent) {
         parent.className = parent.className.replace(/space-y-\S+/g, '');
       }
 
-      // The ONLY page break: break-before on the first section AFTER the cover.
-      // NEVER use break-after on the cover — it causes a trailing blank page.
       const nextSection = coverPage.nextElementSibling as HTMLElement | null;
       if (nextSection) {
         nextSection.style.pageBreakBefore = 'always';
@@ -886,29 +987,28 @@ export default function ReportsView({
       }
     }
 
-    // Fix data spill in card bubbles: mark card containers so print CSS
-    // keeps overflow:hidden on them, and auto-shrink text that's too wide.
-    // Also prevent cards from splitting across pages.
+    // ── 6. Card overflow & currency text clipping ──────────────────
     cloned.querySelectorAll('.rounded-2xl').forEach(card => {
       const htmlCard = card as HTMLElement;
       htmlCard.setAttribute('data-print-clip', '');
       htmlCard.style.overflow = 'hidden';
-      htmlCard.style.breakInside = 'avoid';
-      htmlCard.style.pageBreakInside = 'avoid';
 
-      // Find large currency value elements inside the card and ensure they fit
+      // Propagate data-print-clip to ALL descendants so CSS
+      // overflow:visible !important doesn't override them
+      htmlCard.querySelectorAll('*').forEach(child => {
+        (child as HTMLElement).setAttribute('data-print-clip', '');
+      });
+
+      // Auto-shrink oversized currency values
       card.querySelectorAll('p, span').forEach(el => {
         const htmlEl = el as HTMLElement;
         const text = htmlEl.textContent || '';
-        // Match dollar values: $1,234,567 or similar
         if (/^\s*[+\-]?\$[\d,]+\s*$/.test(text) && text.length > 8) {
           htmlEl.style.whiteSpace = 'nowrap';
           htmlEl.style.overflow = 'hidden';
           htmlEl.style.textOverflow = 'ellipsis';
-          // Scale down oversized text: if the number has 7+ digits, shrink the font
           const digits = text.replace(/[^0-9]/g, '').length;
           if (digits >= 8) {
-            // For 8+ digit numbers in cards, use a smaller font that fits
             const currentSize = parseFloat(getComputedStyle(htmlEl).fontSize) || 30;
             if (currentSize >= 24) {
               htmlEl.style.fontSize = `${Math.max(16, currentSize * 0.72)}px`;
