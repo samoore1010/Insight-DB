@@ -844,7 +844,7 @@ export default function App() {
   }, [allAdjustedData, currentEntity]);
 
   const stats = useMemo(() => {
-    if (currentData.length === 0) return null;
+    if (!currentData || currentData.length === 0) return null;
     const baseStats = calculateStats(currentData);
     
     const isConsolidatedView = currentEntity === EXECUTIVE_ENTITY || (isDepartmentMode && currentEntity === deptConsolidatedKey);
@@ -1664,7 +1664,7 @@ export default function App() {
                     <MaximizeWrapper title="Disbursement Adjustments">
                       <DisbursementEstimates
                         title={`${isDepartmentMode ? regionDisplayName(currentEntity) : currentEntity} Adjustments`}
-                        categories={entityEstimates[currentEntity]}
+                        categories={entityEstimates[currentEntity] || []}
                         onCategoriesChange={(cats) => handleEstimateChange(currentEntity, cats)}
                         currency={currency}
                         readOnly={isViewOnly}
