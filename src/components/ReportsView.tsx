@@ -317,13 +317,13 @@ function ReportContent({
               <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-widest text-[10px] mb-4">Liquidity Trend (30-Day Business Forecast)</h4>
               <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full" style={{ maxHeight: '18rem' }} xmlns="http://www.w3.org/2000/svg">
                 <defs>
-                  <linearGradient id="staticSplitFill" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="staticSplitFill" gradientUnits="userSpaceOnUse" x1="0" y1={padT} x2="0" y2={padT + plotH}>
                     <stop offset="0%" stopColor="#10b981" stopOpacity={0.18}/>
                     <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#10b981" stopOpacity={0.03}/>
                     <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#f43f5e" stopOpacity={0.03}/>
                     <stop offset="100%" stopColor="#f43f5e" stopOpacity={0.22}/>
                   </linearGradient>
-                  <linearGradient id="staticSplitStroke" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="staticSplitStroke" gradientUnits="userSpaceOnUse" x1="0" y1={padT} x2="0" y2={padT + plotH}>
                     <stop offset="0%" stopColor="#10b981"/>
                     <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#10b981"/>
                     <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#f43f5e"/>
