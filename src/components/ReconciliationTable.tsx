@@ -11,6 +11,7 @@ interface Props {
   currency?: string;
   dateFormat?: string;
   actualsOverrides?: Record<string, { actualCashIn?: number; actualCashOut?: number }>;
+  projectionOverrides?: Record<string, Partial<DailyData>>;
 }
 
 export default function ReconciliationTable({
@@ -18,7 +19,8 @@ export default function ReconciliationTable({
   isMaximized = false,
   currency = 'USD',
   dateFormat = 'MM/DD/YYYY',
-  actualsOverrides = {}
+  actualsOverrides = {},
+  projectionOverrides = {}
 }: Props) {
   const [isCollapsed, setIsCollapsed] = useState(!isMaximized);
 
@@ -32,24 +34,34 @@ export default function ReconciliationTable({
   });
 
   // Build rows for actuals dates that fall BEFORE the generated data range
-  // (e.g. uploaded bank feed for dates in the past that have no generated row)
+  // (e.g. uploaded bank feed for dates in the past that have no generated row).
+  // Also pull in projection overrides so the "Projected In/Out" columns populate.
   const existingDates = new Set(data.map(d => d.date));
-  const extraRows: DailyData[] = Object.entries(actualsOverrides)
-    .filter(([dateStr]) => {
-      if (existingDates.has(dateStr)) return false;
-      try {
-        const d = parse(dateStr, "M/d/yyyy", new Date());
-        return isBefore(d, startOfToday());
-      } catch { return false; }
-    })
-    .map(([dateStr, vals]) => ({
+  // Collect all historical dates from both actuals and projections
+  const historicalExtraDates = new Set<string>();
+  for (const dateStr of Object.keys(actualsOverrides)) {
+    if (!existingDates.has(dateStr)) {
+      try { if (isBefore(parse(dateStr, "M/d/yyyy", new Date()), startOfToday())) historicalExtraDates.add(dateStr); } catch {}
+    }
+  }
+  for (const dateStr of Object.keys(projectionOverrides)) {
+    if (!existingDates.has(dateStr)) {
+      try { if (isBefore(parse(dateStr, "M/d/yyyy", new Date()), startOfToday())) historicalExtraDates.add(dateStr); } catch {}
+    }
+  }
+  const extraRows: DailyData[] = Array.from(historicalExtraDates).map(dateStr => {
+    const actuals = actualsOverrides[dateStr];
+    const proj = projectionOverrides[dateStr];
+    const projCashIn = proj?.cashIn ?? 0;
+    return {
       date: dateStr,
-      cashIn: 0, cashOut: 0, netFlow: 0, endingBalance: 0,
+      cashIn: projCashIn, cashOut: 0, netFlow: projCashIn, endingBalance: 0,
       payroll: 0, apPayments: 0, benefits: 0, otherDisbursements: 0,
       regionalReceipts: {}, grants: 0, disbursements: [],
-      actualCashIn: vals.actualCashIn,
-      actualCashOut: vals.actualCashOut,
-    }));
+      actualCashIn: actuals?.actualCashIn,
+      actualCashOut: actuals?.actualCashOut,
+    };
+  });
 
   const historicalData = [...historicalFromData, ...extraRows]
     .sort((a, b) => {
