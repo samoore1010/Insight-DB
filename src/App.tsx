@@ -41,7 +41,7 @@ const isBusinessDay = (date: Date) => {
 export default function App() {
   // === Auth State ===
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem("authUser");
+    const saved = sessionStorage.getItem("authUser");
     return saved ? JSON.parse(saved) : null;
   });
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -63,7 +63,7 @@ export default function App() {
       const data = await res.json();
       if (!res.ok) return { success: false, error: data.error || "Login failed" };
       setCurrentUser(data.user);
-      localStorage.setItem("authUser", JSON.stringify(data.user));
+      sessionStorage.setItem("authUser", JSON.stringify(data.user));
       return { success: true };
     } catch {
       return { success: false, error: "Connection failed" };
@@ -72,7 +72,7 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
-    localStorage.removeItem("authUser");
+    sessionStorage.removeItem("authUser");
   };
 
   const handleCreateUser = async (username: string, password: string, displayName: string, role: "admin" | "viewer", allowedRegions: string[]): Promise<{ success: boolean; error?: string }> => {
