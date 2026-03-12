@@ -30,18 +30,6 @@ import { motion, AnimatePresence } from "motion/react";
 import { clsx } from "clsx";
 import { format, isWeekend, parse, startOfToday, addDays, endOfWeek, isBefore, isAfter, isSameDay } from "date-fns";
 import { exportLiquidityExcel } from "../services/excelExport";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-  ReferenceDot,
-  Label
-} from "recharts";
 import { formatCurrency as centralizedFormatCurrency, formatDate as centralizedFormatDate } from "../utils/formatters";
 
 const BANK_HOLIDAYS_2026 = [
@@ -280,135 +268,125 @@ function ReportContent({
               const chartData = allData?.[activeRegion].slice(0, 30).filter((d: any) => isBusinessDay(parse(d.date, "M/d/yyyy", new Date()))) || [];
               const minEntry = chartData.reduce((min: any, d: any) => (d.endingBalance < (min?.endingBalance ?? Infinity) ? d : min), chartData[0]);
               const hasNegative = chartData.some((d: any) => d.endingBalance < 0);
+
+              // Chart dimensions
+              const svgW = 760;
+              const svgH = 240;
+              const padL = 70; // left padding for Y-axis labels
+              const padR = 12;
+              const padT = 16;
+              const padB = 36; // bottom padding for X-axis labels
+              const plotW = svgW - padL - padR;
+              const plotH = svgH - padT - padB;
+
+              const vals = chartData.map((d: any) => d.endingBalance as number);
+              const dataMax = vals.length ? Math.max(...vals) : 0;
+              const dataMin = vals.length ? Math.min(...vals) : 0;
+              const range = dataMax - dataMin || 1;
+              // Add 5% padding to Y range
+              const yMax = dataMax + range * 0.05;
+              const yMin = dataMin - range * 0.05;
+              const yRange = yMax - yMin;
+
+              const toX = (i: number) => padL + (plotW / Math.max(chartData.length - 1, 1)) * i;
+              const toY = (v: number) => padT + plotH - ((v - yMin) / yRange) * plotH;
+
+              // Build area path (fill) and line path (stroke)
+              const linePoints = chartData.map((d: any, i: number) => `${toX(i)},${toY(d.endingBalance)}`);
+              const linePath = `M${linePoints.join(' L')}`;
+              const areaPath = `${linePath} L${toX(chartData.length - 1)},${toY(0)} L${toX(0)},${toY(0)} Z`;
+
+              // Y-axis ticks (5 ticks)
+              const yTicks = Array.from({ length: 5 }, (_, i) => yMin + (yRange / 4) * i);
+
+              // X-axis: show ~6 evenly spaced labels
+              const xLabelCount = Math.min(6, chartData.length);
+              const xStep = Math.max(1, Math.floor((chartData.length - 1) / (xLabelCount - 1)));
+
+              // Zero line Y position
+              const zeroY = toY(0);
+
+              // Split gradient offset (proportion where $0 sits)
+              const zeroOffset = dataMax <= 0 ? 0 : dataMin >= 0 ? 1 : dataMax / (dataMax - dataMin);
+
+              // Min entry position
+              const minIdx = chartData.indexOf(minEntry);
+
               return (
-            <div className="h-72 w-full mt-4 mb-12" data-print-chart>
+            <div className="w-full mt-4 mb-12">
               <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-widest text-[10px] mb-4">Liquidity Trend (30-Day Business Forecast)</h4>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 10, right: 12, left: 8, bottom: 0 }}>
-                  <defs>
-                    {/* Green gradient for positive territory */}
-                    <linearGradient id="colorBalancePos" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.18}/>
-                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.02}/>
-                    </linearGradient>
-                    {/* Red gradient for negative territory */}
-                    <linearGradient id="colorBalanceNeg" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.02}/>
-                      <stop offset="100%" stopColor="#f43f5e" stopOpacity={0.18}/>
-                    </linearGradient>
-                    {/* Split gradient: green above baseline, red below */}
-                    {(() => {
-                      const vals = chartData.map((d: any) => d.endingBalance);
-                      const max = Math.max(...vals);
-                      const min = Math.min(...vals);
-                      // Proportion of the chart height where $0 sits (0 = top, 1 = bottom)
-                      const zeroOffset = max <= 0 ? 0 : min >= 0 ? 1 : max / (max - min);
-                      return (
-                        <linearGradient id="splitFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#10b981" stopOpacity={0.18}/>
-                          <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#10b981" stopOpacity={0.03}/>
-                          <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#f43f5e" stopOpacity={0.03}/>
-                          <stop offset="100%" stopColor="#f43f5e" stopOpacity={0.22}/>
-                        </linearGradient>
-                      );
-                    })()}
-                    {/* Stroke gradient: same split logic */}
-                    {(() => {
-                      const vals = chartData.map((d: any) => d.endingBalance);
-                      const max = Math.max(...vals);
-                      const min = Math.min(...vals);
-                      const zeroOffset = max <= 0 ? 0 : min >= 0 ? 1 : max / (max - min);
-                      return (
-                        <linearGradient id="splitStroke" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#10b981"/>
-                          <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#10b981"/>
-                          <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#f43f5e"/>
-                          <stop offset="100%" stopColor="#f43f5e"/>
-                        </linearGradient>
-                      );
-                    })()}
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis
-                    dataKey="date"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 600 }}
-                    dy={10}
-                    tickFormatter={(val) => formatDate(val)}
-                    interval="preserveStartEnd"
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 600 }}
-                    tickFormatter={(val: number) => formatCurrency(val, true)}
-                    width={62}
-                    domain={['auto', 'auto']}
-                  />
-                  <Tooltip
-                    content={({ active, payload, label }: any) => {
-                      if (!active || !payload?.length) return null;
-                      const val = payload[0].value as number;
-                      return (
-                        <div className="bg-slate-900 text-white px-3 py-2 rounded-lg shadow-xl text-xs">
-                          <p className="text-slate-400 font-semibold mb-1">{formatDate(label)}</p>
-                          <p className={clsx("font-mono font-black text-sm", val >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                            {formatCurrency(val)}
-                          </p>
-                        </div>
-                      );
-                    }}
-                  />
-                  {/* $0 Reference Line */}
-                  {hasNegative && (
-                    <ReferenceLine
-                      y={0}
-                      stroke="#f43f5e"
-                      strokeDasharray="6 4"
-                      strokeWidth={1.5}
+              <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full" style={{ maxHeight: '18rem' }} xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="staticSplitFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.18}/>
+                    <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#10b981" stopOpacity={0.03}/>
+                    <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#f43f5e" stopOpacity={0.03}/>
+                    <stop offset="100%" stopColor="#f43f5e" stopOpacity={0.22}/>
+                  </linearGradient>
+                  <linearGradient id="staticSplitStroke" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981"/>
+                    <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#10b981"/>
+                    <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#f43f5e"/>
+                    <stop offset="100%" stopColor="#f43f5e"/>
+                  </linearGradient>
+                </defs>
+
+                {/* Grid lines */}
+                {yTicks.map((tick, i) => (
+                  <line key={i} x1={padL} x2={svgW - padR} y1={toY(tick)} y2={toY(tick)} stroke="#e2e8f0" strokeDasharray="3 3" />
+                ))}
+
+                {/* Y-axis labels */}
+                {yTicks.map((tick, i) => (
+                  <text key={i} x={padL - 8} y={toY(tick) + 3} textAnchor="end" fontSize={9} fill="#94a3b8" fontWeight={600}>
+                    {formatCurrency(tick, true)}
+                  </text>
+                ))}
+
+                {/* X-axis labels */}
+                {chartData.map((d: any, i: number) => {
+                  if (i % xStep !== 0 && i !== chartData.length - 1) return null;
+                  return (
+                    <text key={i} x={toX(i)} y={svgH - 8} textAnchor="middle" fontSize={9} fill="#94a3b8" fontWeight={600}>
+                      {formatDate(d.date)}
+                    </text>
+                  );
+                })}
+
+                {/* Area fill */}
+                {chartData.length > 1 && (
+                  <path d={areaPath} fill="url(#staticSplitFill)" />
+                )}
+
+                {/* Line stroke */}
+                {chartData.length > 1 && (
+                  <path d={linePath} fill="none" stroke="url(#staticSplitStroke)" strokeWidth={2.5} />
+                )}
+
+                {/* $0 reference line */}
+                {hasNegative && zeroY >= padT && zeroY <= padT + plotH && (
+                  <>
+                    <line x1={padL} x2={svgW - padR} y1={zeroY} y2={zeroY} stroke="#f43f5e" strokeDasharray="6 4" strokeWidth={1.5} />
+                    <text x={padL - 8} y={zeroY + 3} textAnchor="end" fontSize={10} fill="#f43f5e" fontWeight={700}>$0</text>
+                  </>
+                )}
+
+                {/* Min balance dot + label */}
+                {minEntry && minIdx >= 0 && (
+                  <>
+                    <circle cx={toX(minIdx)} cy={toY(minEntry.endingBalance)} r={4}
+                      fill={minEntry.endingBalance >= 0 ? "#f59e0b" : "#f43f5e"} stroke="white" strokeWidth={2} />
+                    <text
+                      x={toX(minIdx)}
+                      y={minEntry.endingBalance >= 0 ? toY(minEntry.endingBalance) + 16 : toY(minEntry.endingBalance) - 10}
+                      textAnchor="middle" fontSize={9}
+                      fill={minEntry.endingBalance >= 0 ? "#f59e0b" : "#f43f5e"} fontWeight={700}
                     >
-                      <Label
-                        value="$0"
-                        position="left"
-                        fill="#f43f5e"
-                        fontSize={10}
-                        fontWeight={700}
-                        offset={8}
-                      />
-                    </ReferenceLine>
-                  )}
-                  <Area
-                    type="monotone"
-                    dataKey="endingBalance"
-                    stroke="url(#splitStroke)"
-                    strokeWidth={2.5}
-                    fillOpacity={1}
-                    fill="url(#splitFill)"
-                    baseValue={0}
-                  />
-                  {/* Min balance annotation */}
-                  {minEntry && (
-                    <ReferenceDot
-                      x={minEntry.date}
-                      y={minEntry.endingBalance}
-                      r={4}
-                      fill={minEntry.endingBalance >= 0 ? "#f59e0b" : "#f43f5e"}
-                      stroke="white"
-                      strokeWidth={2}
-                    >
-                      <Label
-                        value={`Min: ${formatCurrency(minEntry.endingBalance)}`}
-                        position={minEntry.endingBalance >= 0 ? "bottom" : "top"}
-                        fill={minEntry.endingBalance >= 0 ? "#f59e0b" : "#f43f5e"}
-                        fontSize={9}
-                        fontWeight={700}
-                        offset={10}
-                      />
-                    </ReferenceDot>
-                  )}
-                </AreaChart>
-              </ResponsiveContainer>
+                      {`Min: ${formatCurrency(minEntry.endingBalance)}`}
+                    </text>
+                  </>
+                )}
+              </svg>
             </div>
               );
             })()}
@@ -780,113 +758,15 @@ export default function ReportsView({
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handlePrint = async (elementId: string) => {
+  const handlePrint = (elementId: string) => {
     const element = document.getElementById(elementId);
     if (!element) return;
-
-    // ── 0. Capture chart as PNG image BEFORE cloning ────────────────
-    // Recharts SVGs depend on gradient/clipPath IDs that collide when
-    // cloned. Rasterize to a real PNG canvas so it prints reliably.
-    const chartEl = element.querySelector('[data-print-chart]') as HTMLElement | null;
-    let chartImageDataUrl: string | null = null;
-    let chartWidth = 0;
-    let chartHeight = 0;
-    if (chartEl) {
-      const svg = chartEl.querySelector('svg');
-      if (svg) {
-        chartWidth = svg.clientWidth || svg.getBoundingClientRect().width;
-        chartHeight = svg.clientHeight || svg.getBoundingClientRect().height;
-        try {
-          const serializer = new XMLSerializer();
-          const svgStr = serializer.serializeToString(svg);
-          const scale = 2; // retina quality
-          // Await the image load so we get a real PNG, not a raw SVG data URL
-          chartImageDataUrl = await new Promise<string | null>((resolve) => {
-            const img = new Image();
-            img.onload = () => {
-              URL.revokeObjectURL(img.src);
-              const canvas = document.createElement('canvas');
-              canvas.width = chartWidth * scale;
-              canvas.height = chartHeight * scale;
-              const ctx = canvas.getContext('2d');
-              if (ctx) {
-                ctx.scale(scale, scale);
-                ctx.drawImage(img, 0, 0, chartWidth, chartHeight);
-                resolve(canvas.toDataURL('image/png'));
-              } else {
-                resolve(null);
-              }
-            };
-            img.onerror = () => { URL.revokeObjectURL(img.src); resolve(null); };
-            // Use a blob URL for reliable cross-browser SVG rendering
-            const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
-            img.src = URL.createObjectURL(svgBlob);
-          });
-        } catch {
-          // If serialization fails, we'll fall back to the gradient fix below
-        }
-      }
-    }
 
     // Clone the full element into a print wrapper appended to <body>
     const printWrapper = document.createElement('div');
     printWrapper.className = 'print-report-wrapper';
     const cloned = element.cloneNode(true) as HTMLElement;
     cloned.removeAttribute('id');
-
-    // ── 1. Fix chart rendering ─────────────────────────────────────
-    // Replace the SVG in the clone with a rasterized <img> to avoid
-    // gradient/clipPath ID collisions entirely.
-    const clonedChart = cloned.querySelector('[data-print-chart]') as HTMLElement | null;
-    if (clonedChart && chartImageDataUrl) {
-      // Remove the h4 heading first so we can re-add it
-      const heading = clonedChart.querySelector('h4');
-      const headingClone = heading ? heading.cloneNode(true) as HTMLElement : null;
-
-      // Replace all chart internals with the rasterized image
-      clonedChart.innerHTML = '';
-      if (headingClone) clonedChart.appendChild(headingClone);
-
-      const img = document.createElement('img');
-      img.src = chartImageDataUrl;
-      img.style.width = `${chartWidth}px`;
-      img.style.height = `${chartHeight}px`;
-      img.style.maxWidth = '100%';
-      img.style.display = 'block';
-      clonedChart.appendChild(img);
-
-      clonedChart.style.height = 'auto';
-      clonedChart.style.minHeight = '0';
-      clonedChart.setAttribute('data-print-clip', '');
-    } else if (clonedChart) {
-      // Fallback: if rasterization failed, at least fix gradient IDs
-      const uid = '_p' + Date.now();
-      clonedChart.querySelectorAll('[id]').forEach(el => {
-        const oldId = el.getAttribute('id')!;
-        const newId = oldId + uid;
-        el.setAttribute('id', newId);
-        // Update references in the entire chart subtree
-        clonedChart.querySelectorAll('*').forEach(ref => {
-          ['fill', 'stroke', 'clip-path', 'filter', 'mask', 'style'].forEach(attr => {
-            const val = ref.getAttribute(attr);
-            if (val && val.includes(`#${oldId}`)) {
-              ref.setAttribute(attr, val.split(`#${oldId}`).join(`#${newId}`));
-            }
-          });
-        });
-      });
-      // Also remove clipPath references entirely as a safety net
-      clonedChart.querySelectorAll('[clip-path]').forEach(el => {
-        el.removeAttribute('clip-path');
-      });
-      clonedChart.setAttribute('data-print-clip', '');
-      clonedChart.style.height = '18rem';
-      clonedChart.style.minHeight = '18rem';
-      clonedChart.style.overflow = 'hidden';
-      clonedChart.querySelectorAll('*').forEach(child => {
-        (child as HTMLElement).setAttribute('data-print-clip', '');
-      });
-    }
 
     // ── 2. Force all elements to be fully visible ──────────────────
     // Skip SVG internals and protected elements
