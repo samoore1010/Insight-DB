@@ -306,8 +306,9 @@ function ReportContent({
               // Zero line Y position
               const zeroY = toY(0);
 
-              // Split gradient offset (proportion where $0 sits)
-              const zeroOffset = dataMax <= 0 ? 0 : dataMin >= 0 ? 1 : dataMax / (dataMax - dataMin);
+              // Determine dominant color: green if mostly positive, red if mostly negative
+              const lineColor = dataMin >= 0 ? "#10b981" : dataMax <= 0 ? "#f43f5e" : "#334155";
+              const fillColor = dataMin >= 0 ? "rgba(16,185,129,0.13)" : dataMax <= 0 ? "rgba(244,63,94,0.13)" : "rgba(51,65,85,0.08)";
 
               // Min entry position
               const minIdx = chartData.indexOf(minEntry);
@@ -316,21 +317,6 @@ function ReportContent({
             <div className="w-full mt-4 mb-12">
               <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-widest text-[10px] mb-4">Liquidity Trend (30-Day Business Forecast)</h4>
               <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full" style={{ maxHeight: '18rem' }} xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <linearGradient id="staticSplitFill" gradientUnits="userSpaceOnUse" x1="0" y1={padT} x2="0" y2={padT + plotH}>
-                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.18}/>
-                    <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#10b981" stopOpacity={0.03}/>
-                    <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#f43f5e" stopOpacity={0.03}/>
-                    <stop offset="100%" stopColor="#f43f5e" stopOpacity={0.22}/>
-                  </linearGradient>
-                  <linearGradient id="staticSplitStroke" gradientUnits="userSpaceOnUse" x1="0" y1={padT} x2="0" y2={padT + plotH}>
-                    <stop offset="0%" stopColor="#10b981"/>
-                    <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#10b981"/>
-                    <stop offset={`${(zeroOffset * 100).toFixed(1)}%`} stopColor="#f43f5e"/>
-                    <stop offset="100%" stopColor="#f43f5e"/>
-                  </linearGradient>
-                </defs>
-
                 {/* Grid lines */}
                 {yTicks.map((tick, i) => (
                   <line key={i} x1={padL} x2={svgW - padR} y1={toY(tick)} y2={toY(tick)} stroke="#e2e8f0" strokeDasharray="3 3" />
@@ -355,12 +341,12 @@ function ReportContent({
 
                 {/* Area fill */}
                 {chartData.length > 1 && (
-                  <path d={areaPath} fill="url(#staticSplitFill)" />
+                  <path d={areaPath} fill={fillColor} />
                 )}
 
                 {/* Line stroke */}
                 {chartData.length > 1 && (
-                  <path d={linePath} fill="none" stroke="url(#staticSplitStroke)" strokeWidth={2.5} />
+                  <path d={linePath} fill="none" stroke={lineColor} strokeWidth={2.5} strokeLinejoin="round" />
                 )}
 
                 {/* $0 reference line */}
