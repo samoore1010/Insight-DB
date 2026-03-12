@@ -956,7 +956,7 @@ async function startServer() {
   // === Auth API ===
   app.post("/api/auth/login", (req, res) => {
     try {
-      const { username, password } = req.body;
+      const { username, password, location: requestedLocation } = req.body;
       if (!username || !password) {
         return res.status(400).json({ error: "Username and password required" });
       }
@@ -967,6 +967,22 @@ async function startServer() {
       if (!user) {
         return res.status(401).json({ error: "Invalid credentials" });
       }
+
+      const assignedLocation = user.location || "executive";
+      let effectiveLocation = assignedLocation;
+
+      if (user.role === "admin") {
+        // Admins can log in to any location
+        effectiveLocation = requestedLocation || assignedLocation;
+      } else {
+        // Non-admins are restricted to their assigned location
+        if (requestedLocation && requestedLocation !== assignedLocation) {
+          return res.status(403).json({
+            error: `You are not authorized for the ${requestedLocation} dashboard. Your assigned location is ${assignedLocation}.`
+          });
+        }
+      }
+
       res.json({
         user: {
           id: user.id,
@@ -974,11 +990,36 @@ async function startServer() {
           displayName: user.display_name,
           role: user.role,
           allowedRegions: JSON.parse(user.allowed_regions || "[]"),
-          location: user.location || "executive"
+          location: effectiveLocation
         }
       });
     } catch (error) {
       res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // Returns allowed locations for a given username (for login page filtering)
+  app.get("/api/auth/locations/:username", (req, res) => {
+    try {
+      const { username } = req.params;
+      const user = db.prepare(
+        "SELECT role, location FROM users WHERE username = ?"
+      ).get(username) as any;
+      if (!user) {
+        // Don't reveal whether user exists — return all locations
+        const depts = db.prepare("SELECT name FROM departments ORDER BY name").all() as any[];
+        return res.json({ locations: ["executive", ...depts.map((d: any) => d.name)], defaultLocation: "executive" });
+      }
+      if (user.role === "admin") {
+        // Admins can access all locations
+        const depts = db.prepare("SELECT name FROM departments ORDER BY name").all() as any[];
+        return res.json({ locations: ["executive", ...depts.map((d: any) => d.name)], defaultLocation: user.location || "executive" });
+      }
+      // Non-admin: only their assigned location
+      const assignedLocation = user.location || "executive";
+      res.json({ locations: [assignedLocation], defaultLocation: assignedLocation });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch locations" });
     }
   });
 

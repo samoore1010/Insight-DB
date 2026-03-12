@@ -1,10 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Building2, Lock, User, Eye, EyeOff, AlertCircle, MapPin, ChevronDown } from "lucide-react";
 import { motion } from "motion/react";
 
 interface Department {
   id: string;
   name: string;
+}
+
+interface LocationInfo {
+  locations: string[];
+  defaultLocation: string;
 }
 
 interface Props {
@@ -16,6 +21,7 @@ export default function LoginPage({ onLogin }: Props) {
   const [password, setPassword] = useState("");
   const [location, setLocation] = useState("executive");
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [allowedLocations, setAllowedLocations] = useState<string[] | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,6 +32,37 @@ export default function LoginPage({ onLogin }: Props) {
       .then(data => setDepartments(data))
       .catch(() => {});
   }, []);
+
+  // Fetch allowed locations when username changes (debounced on blur)
+  const fetchAllowedLocations = useCallback(async (uname: string) => {
+    if (!uname.trim()) {
+      setAllowedLocations(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/auth/locations/${encodeURIComponent(uname.trim())}`);
+      if (res.ok) {
+        const data: LocationInfo = await res.json();
+        setAllowedLocations(data.locations);
+        // Auto-select the user's default location
+        if (data.defaultLocation) {
+          setLocation(data.defaultLocation);
+        }
+      }
+    } catch {
+      // Silently fail — dropdown will show all locations as fallback
+    }
+  }, []);
+
+  // Determine which locations to show in the dropdown
+  const availableLocations = allowedLocations
+    ? allowedLocations
+    : ["executive", ...departments.map(d => d.name)];
+
+  const getLocationLabel = (loc: string) => {
+    if (loc === "executive") return "Executive";
+    return loc.charAt(0).toUpperCase() + loc.slice(1);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,6 +128,7 @@ export default function LoginPage({ onLogin }: Props) {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
+                  onBlur={(e) => fetchAllowedLocations(e.target.value)}
                   placeholder="Enter username"
                   autoFocus
                   autoComplete="username"
@@ -132,17 +170,21 @@ export default function LoginPage({ onLogin }: Props) {
                 <select
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
-                  className="w-full pl-11 pr-10 py-3 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all appearance-none cursor-pointer"
+                  disabled={allowedLocations !== null && allowedLocations.length <= 1}
+                  className="w-full pl-11 pr-10 py-3 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <option value="executive">Executive</option>
-                  {departments.map(dept => (
-                    <option key={dept.id} value={dept.name}>{dept.name}</option>
+                  {availableLocations.map(loc => (
+                    <option key={loc} value={loc}>{getLocationLabel(loc)}</option>
                   ))}
                 </select>
                 <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
               </div>
               <p className="text-[10px] text-slate-600 mt-1.5">
-                {location === "executive" ? "Company-wide executive dashboard" : `Department dashboard for ${location}`}
+                {allowedLocations !== null && allowedLocations.length === 1
+                  ? `You are assigned to the ${getLocationLabel(location)} dashboard`
+                  : location === "executive"
+                    ? "Company-wide executive dashboard"
+                    : `Department dashboard for ${getLocationLabel(location)}`}
               </p>
             </div>
 
