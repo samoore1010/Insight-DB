@@ -15,9 +15,14 @@ import {
   Trash2,
   MapPin,
   Plus,
-  X
+  X,
+  Users,
+  UserPlus,
+  Check,
+  LogOut
 } from "lucide-react";
 import { EXECUTIVE_ENTITY } from "../types";
+import type { User } from "../auth";
 
 interface Props {
   theme: 'light' | 'dark' | 'system';
@@ -33,6 +38,12 @@ interface Props {
   regions: string[];
   onAddRegion: (name: string) => void;
   onDeleteRegion: (name: string) => void;
+  currentUser?: User | null;
+  allUsers?: User[];
+  onCreateUser?: (username: string, password: string, displayName: string, role: "admin" | "viewer", allowedRegions: string[]) => Promise<{ success: boolean; error?: string }>;
+  onUpdateUser?: (id: string, updates: { displayName?: string; role?: "admin" | "viewer"; allowedRegions?: string[]; password?: string }) => Promise<{ success: boolean; error?: string }>;
+  onDeleteUser?: (id: string) => Promise<{ success: boolean; error?: string }>;
+  onLogout?: () => void;
 }
 
 export default function SettingsView({
@@ -48,7 +59,13 @@ export default function SettingsView({
   onCompanyLogoChange,
   regions,
   onAddRegion,
-  onDeleteRegion
+  onDeleteRegion,
+  currentUser,
+  allUsers,
+  onCreateUser,
+  onUpdateUser,
+  onDeleteUser,
+  onLogout
 }: Props) {
   const [notifications, setNotifications] = useState({
     lowBalance: true,
@@ -60,6 +77,18 @@ export default function SettingsView({
   const [newRegionName, setNewRegionName] = useState("");
   const [confirmDeleteRegion, setConfirmDeleteRegion] = useState<string | null>(null);
   const [confirmAddRegion, setConfirmAddRegion] = useState(false);
+
+  // User management state
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [newUser, setNewUser] = useState({ username: "", password: "", displayName: "", role: "viewer" as "admin" | "viewer" });
+  const [newUserRegions, setNewUserRegions] = useState<string[]>([]);
+  const [createError, setCreateError] = useState("");
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editRegions, setEditRegions] = useState<string[]>([]);
+  const [confirmDeleteUser, setConfirmDeleteUser] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState("");
+
+  const isAdmin = currentUser?.role === "admin";
 
   const toggleNotification = (key: keyof typeof notifications) => {
     setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
@@ -420,6 +449,244 @@ export default function SettingsView({
           </div>
         </section>
 
+        {/* User Management Section - Admin only */}
+        {isAdmin && allUsers && onCreateUser && onUpdateUser && onDeleteUser && (
+          <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+              <div className="w-8 h-8 bg-violet-100 dark:bg-violet-900/30 rounded-lg flex items-center justify-center">
+                <Users className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-slate-900 dark:text-white">User Management</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Manage users and their region access permissions.</p>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Existing users */}
+              <div className="space-y-2">
+                {allUsers.map(user => (
+                  <div key={user.id} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white ${user.role === "admin" ? "bg-amber-500" : "bg-slate-500"}`}>
+                          {user.displayName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white">{user.displayName}</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">@{user.username} &middot; {user.role === "admin" ? "Admin" : "Viewer"}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {user.id !== currentUser?.id && (
+                          <>
+                            {editingUserId === user.id ? (
+                              <button
+                                onClick={async () => {
+                                  await onUpdateUser(user.id, { allowedRegions: editRegions });
+                                  setEditingUserId(null);
+                                }}
+                                className="px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-[10px] font-bold hover:bg-emerald-700 transition-all flex items-center gap-1"
+                              >
+                                <Check className="w-3 h-3" />
+                                Save
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => { setEditingUserId(user.id); setEditRegions(user.allowedRegions || []); }}
+                                className="px-2.5 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
+                              >
+                                Edit Regions
+                              </button>
+                            )}
+                            {confirmDeleteUser === user.id ? (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={async () => {
+                                    const result = await onDeleteUser(user.id);
+                                    if (!result.success) setDeleteError(result.error || "Failed");
+                                    setConfirmDeleteUser(null);
+                                  }}
+                                  className="px-2 py-1 bg-rose-600 text-white rounded-md text-[10px] font-bold"
+                                >
+                                  Yes
+                                </button>
+                                <button
+                                  onClick={() => setConfirmDeleteUser(null)}
+                                  className="px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-md text-[10px] font-bold"
+                                >
+                                  No
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmDeleteUser(user.id)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </>
+                        )}
+                        {user.id === currentUser?.id && (
+                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 px-2 py-1 rounded-md uppercase tracking-wider">You</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Region toggles when editing */}
+                    {editingUserId === user.id && (
+                      <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Allowed Regions (empty = all regions)</p>
+                        <div className="flex flex-wrap gap-2">
+                          {regions.map(region => {
+                            const isAllowed = editRegions.includes(region);
+                            return (
+                              <button
+                                key={region}
+                                onClick={() => {
+                                  setEditRegions(prev =>
+                                    isAllowed ? prev.filter(r => r !== region) : [...prev, region]
+                                  );
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                  isAllowed
+                                    ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
+                                    : "bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700"
+                                }`}
+                              >
+                                {region}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Show assigned regions when not editing */}
+                    {editingUserId !== user.id && user.allowedRegions && user.allowedRegions.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {user.allowedRegions.map(r => (
+                          <span key={r} className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded text-[10px] font-bold">{r}</span>
+                        ))}
+                      </div>
+                    )}
+                    {editingUserId !== user.id && (!user.allowedRegions || user.allowedRegions.length === 0) && (
+                      <p className="mt-1 text-[10px] text-slate-400">Access: All regions</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {deleteError && (
+                <p className="text-xs text-rose-500 font-bold">{deleteError}</p>
+              )}
+
+              {/* Create new user form */}
+              {showCreateUser ? (
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">Create New User</p>
+                    <button onClick={() => { setShowCreateUser(false); setCreateError(""); }} className="p-1 text-slate-400 hover:text-slate-600 rounded">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {createError && <p className="text-xs text-rose-500 font-bold">{createError}</p>}
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      placeholder="Username"
+                      value={newUser.username}
+                      onChange={e => setNewUser(prev => ({ ...prev, username: e.target.value }))}
+                      className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-violet-500 dark:text-white placeholder:text-slate-400"
+                    />
+                    <input
+                      type="password"
+                      placeholder="Password"
+                      value={newUser.password}
+                      onChange={e => setNewUser(prev => ({ ...prev, password: e.target.value }))}
+                      className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-violet-500 dark:text-white placeholder:text-slate-400"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Display Name"
+                    value={newUser.displayName}
+                    onChange={e => setNewUser(prev => ({ ...prev, displayName: e.target.value }))}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-violet-500 dark:text-white placeholder:text-slate-400"
+                  />
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Role</label>
+                    <div className="flex gap-2">
+                      {(["viewer", "admin"] as const).map(role => (
+                        <button
+                          key={role}
+                          onClick={() => setNewUser(prev => ({ ...prev, role }))}
+                          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                            newUser.role === role
+                              ? "bg-violet-600 text-white"
+                              : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                          }`}
+                        >
+                          {role.charAt(0).toUpperCase() + role.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Allowed Regions (empty = all)</label>
+                    <div className="flex flex-wrap gap-2">
+                      {regions.map(region => {
+                        const isSelected = newUserRegions.includes(region);
+                        return (
+                          <button
+                            key={region}
+                            onClick={() => setNewUserRegions(prev => isSelected ? prev.filter(r => r !== region) : [...prev, region])}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                              isSelected
+                                ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
+                                : "bg-white dark:bg-slate-900 text-slate-400 border border-slate-200 dark:border-slate-700"
+                            }`}
+                          >
+                            {region}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setCreateError("");
+                      if (!newUser.username || !newUser.password || !newUser.displayName) {
+                        setCreateError("All fields are required");
+                        return;
+                      }
+                      const result = await onCreateUser(newUser.username, newUser.password, newUser.displayName, newUser.role, newUserRegions);
+                      if (result.success) {
+                        setShowCreateUser(false);
+                        setNewUser({ username: "", password: "", displayName: "", role: "viewer" });
+                        setNewUserRegions([]);
+                      } else {
+                        setCreateError(result.error || "Failed to create user");
+                      }
+                    }}
+                    className="w-full py-2.5 bg-violet-600 text-white rounded-lg text-xs font-bold hover:bg-violet-700 transition-all"
+                  >
+                    Create User
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowCreateUser(true)}
+                  className="w-full py-3 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-400 hover:text-violet-600 hover:border-violet-300 dark:hover:border-violet-700 transition-all flex items-center justify-center gap-2"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Add New User
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+
         {/* Data Management */}
         <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
           <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
@@ -455,6 +722,17 @@ export default function SettingsView({
             </div>
           </div>
         </section>
+
+        {/* Logout */}
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center justify-center gap-2 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl text-sm font-bold hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-600 dark:hover:text-rose-400 transition-all border border-slate-200 dark:border-slate-800"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </button>
+        )}
       </div>
     </div>
   );

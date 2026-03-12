@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { parse, differenceInDays, format, startOfToday, addDays, isWeekend, isBefore } from "date-fns";
 import { DailyData, DashboardStats, Entity, DisbursementItem, EstimateCategory, Report, EXECUTIVE_ENTITY, DEFAULT_REGIONS } from "./types";
 import { parseLiquidityData, calculateStats } from "./data/parser";
@@ -12,9 +12,11 @@ import ReportsView from "./components/ReportsView";
 import MaximizeWrapper from "./components/MaximizeWrapper";
 import SettingsView from "./components/SettingsView";
 import ChangeHistory from "./components/ChangeHistory";
+import LoginPage from "./components/LoginPage";
 import { syncEstimates, syncDisbursements, syncBalances } from "./api/treasury";
-import { LayoutDashboard, Building2, FileText, Settings, Bell, Search, Users, MapPin, Globe, Earth, Car, Building, Landmark, Play, Pause, RotateCcw, Menu, X, History } from "lucide-react";
+import { LayoutDashboard, Building2, FileText, Settings, Bell, Search, Users, MapPin, Globe, Earth, Car, Building, Landmark, Play, Pause, RotateCcw, Menu, X, History, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import type { User } from "./auth";
 
 const BANK_HOLIDAYS_2026 = [
   "2026-01-01", // New Year's Day
@@ -37,6 +39,92 @@ const isBusinessDay = (date: Date) => {
 };
 
 export default function App() {
+  // === Auth State ===
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem("authUser");
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+
+  const refreshUsers = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/users");
+      if (res.ok) setAllUsers(await res.json());
+    } catch {}
+  }, []);
+
+  const handleLogin = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || "Login failed" };
+      setCurrentUser(data.user);
+      localStorage.setItem("authUser", JSON.stringify(data.user));
+      return { success: true };
+    } catch {
+      return { success: false, error: "Connection failed" };
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem("authUser");
+  };
+
+  const handleCreateUser = async (username: string, password: string, displayName: string, role: "admin" | "viewer", allowedRegions: string[]): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch("/api/auth/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password, displayName, role, allowedRegions })
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error };
+      await refreshUsers();
+      return { success: true };
+    } catch {
+      return { success: false, error: "Connection failed" };
+    }
+  };
+
+  const handleUpdateUser = async (id: string, updates: { displayName?: string; role?: "admin" | "viewer"; allowedRegions?: string[]; password?: string }): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch(`/api/auth/users/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates)
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error };
+      await refreshUsers();
+      return { success: true };
+    } catch {
+      return { success: false, error: "Connection failed" };
+    }
+  };
+
+  const handleDeleteUser = async (id: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch(`/api/auth/users/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error };
+      await refreshUsers();
+      return { success: true };
+    } catch {
+      return { success: false, error: "Connection failed" };
+    }
+  };
+
+  // Load users list when authenticated as admin
+  useEffect(() => {
+    if (currentUser?.role === "admin") refreshUsers();
+  }, [currentUser, refreshUsers]);
+
+  // === Main App State ===
   const [multiEntityData, setMultiEntityData] = useState<Record<Entity, DailyData[]> | null>(null);
   const [currentEntity, setCurrentEntity] = useState<Entity>(EXECUTIVE_ENTITY);
   const [activeView, setActiveView] = useState<"dashboard" | "reports" | "settings" | "history">("dashboard");
@@ -592,11 +680,6 @@ export default function App() {
     return baseStats;
   }, [currentData, currentEntity, allAdjustedData]);
 
-  const navigation = [
-    { id: EXECUTIVE_ENTITY, label: "Executive View", icon: Earth },
-    ...regions.map(r => ({ id: r, label: r, icon: Building2 })),
-  ];
-
   const handleEstimateChange = (entity: string, newCategories: EstimateCategory[]) => {
     setEntityEstimates(prev => ({
       ...prev,
@@ -832,6 +915,34 @@ export default function App() {
     const parsed = parseLiquidityData(newRegions);
     setMultiEntityData(parsed);
   };
+
+  // === Login Gate ===
+  if (!currentUser) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
+  // Filter regions by user permissions
+  const hasRegionRestriction = currentUser.allowedRegions && currentUser.allowedRegions.length > 0;
+  const canSeeExecutive = !hasRegionRestriction || currentUser.role === "admin";
+
+  // Redirect if current entity is not accessible
+  if (hasRegionRestriction && currentUser.role !== "admin") {
+    if (currentEntity === EXECUTIVE_ENTITY || !currentUser.allowedRegions.includes(currentEntity)) {
+      const firstAllowed = regions.find(r => currentUser.allowedRegions.includes(r));
+      if (firstAllowed && currentEntity !== firstAllowed) {
+        setCurrentEntity(firstAllowed);
+      }
+    }
+  }
+
+  const visibleRegions = hasRegionRestriction && currentUser.role !== "admin"
+    ? regions.filter(r => currentUser.allowedRegions.includes(r))
+    : regions;
+
+  const navigation = [
+    ...(canSeeExecutive ? [{ id: EXECUTIVE_ENTITY, label: "Executive View", icon: Earth }] : []),
+    ...visibleRegions.map(r => ({ id: r, label: r, icon: Building2 })),
+  ];
 
   if (!stats || !allAdjustedData) return null;
 
@@ -1072,16 +1183,23 @@ export default function App() {
 
               <div className="hidden lg:flex items-center gap-4">
                 <div className="flex flex-col items-end">
-                  <span className="text-sm font-semibold text-slate-900 dark:text-white">Treasury Manager</span>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">{currentEntity} Operations</span>
+                  <span className="text-sm font-semibold text-slate-900 dark:text-white">{currentUser.displayName}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">{currentUser.role === "admin" ? "Admin" : "Viewer"} &middot; {currentEntity}</span>
                 </div>
               </div>
+              <button
+                onClick={handleLogout}
+                className="hidden lg:flex p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
+                title="Sign Out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
               <div className="w-10 h-10 bg-slate-200 dark:bg-slate-800 rounded-full border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden flex items-center justify-center flex-shrink-0">
                 {companyLogo ? (
                   <img src={companyLogo} alt="Company Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                 ) : (
                   <div className="w-full h-full bg-emerald-500 flex items-center justify-center text-white font-bold text-xs">
-                    TM
+                    {currentUser.displayName.charAt(0).toUpperCase()}
                   </div>
                 )}
               </div>
@@ -1221,8 +1339,8 @@ export default function App() {
                 )}
               </div>
             ) : activeView === "reports" ? (
-              <ReportsView 
-                regions={[EXECUTIVE_ENTITY, ...regions]}
+              <ReportsView
+                regions={[...(canSeeExecutive ? [EXECUTIVE_ENTITY] : []), ...visibleRegions]}
                 allData={allAdjustedData}
                 reports={reports}
                 onReportsChange={setReports}
@@ -1262,6 +1380,12 @@ export default function App() {
                 regions={regions}
                 onAddRegion={handleAddRegion}
                 onDeleteRegion={handleDeleteRegion}
+                currentUser={currentUser}
+                allUsers={allUsers}
+                onCreateUser={handleCreateUser}
+                onUpdateUser={handleUpdateUser}
+                onDeleteUser={handleDeleteUser}
+                onLogout={handleLogout}
               />
             )}
           </div>
