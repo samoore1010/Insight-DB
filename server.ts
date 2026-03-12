@@ -89,6 +89,31 @@ db.exec(`
   );
 `);
 
+// === Users table for authentication ===
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'viewer',
+    allowed_regions TEXT NOT NULL DEFAULT '[]',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+// Seed default admin user if no users exist
+const userCount = db.prepare("SELECT COUNT(*) as cnt FROM users").get() as any;
+if (userCount.cnt === 0) {
+  const adminId = crypto.randomUUID();
+  // Simple hash for default admin/admin credentials
+  const adminHash = crypto.createHash("sha256").update("admin").digest("hex");
+  db.prepare(
+    "INSERT INTO users (id, username, password_hash, display_name, role, allowed_regions) VALUES (?, ?, ?, ?, ?, ?)"
+  ).run(adminId, "admin", adminHash, "Administrator", "admin", "[]");
+  console.log("Seeded default admin user (admin/admin)");
+}
+
 // Create indexes (wrapped in try/catch since they may already exist)
 try { db.exec("CREATE INDEX IF NOT EXISTS idx_disbursements_region_date ON disbursements(region, date)"); } catch(e) {}
 try { db.exec("CREATE INDEX IF NOT EXISTS idx_changelog_entity ON changelog(entity_type, entity_id)"); } catch(e) {}
@@ -907,6 +932,116 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to sync balances" });
+    }
+  });
+
+  // === Auth API ===
+  app.post("/api/auth/login", (req, res) => {
+    try {
+      const { username, password } = req.body;
+      if (!username || !password) {
+        return res.status(400).json({ error: "Username and password required" });
+      }
+      const hash = crypto.createHash("sha256").update(password).digest("hex");
+      const user = db.prepare(
+        "SELECT id, username, display_name, role, allowed_regions FROM users WHERE username = ? AND password_hash = ?"
+      ).get(username, hash) as any;
+      if (!user) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      res.json({
+        user: {
+          id: user.id,
+          username: user.username,
+          displayName: user.display_name,
+          role: user.role,
+          allowedRegions: JSON.parse(user.allowed_regions || "[]")
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  app.get("/api/auth/users", (req, res) => {
+    try {
+      const rows = db.prepare(
+        "SELECT id, username, display_name, role, allowed_regions, created_at FROM users ORDER BY created_at"
+      ).all() as any[];
+      res.json(rows.map(r => ({
+        id: r.id,
+        username: r.username,
+        displayName: r.display_name,
+        role: r.role,
+        allowedRegions: JSON.parse(r.allowed_regions || "[]"),
+        createdAt: r.created_at
+      })));
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  app.post("/api/auth/users", (req, res) => {
+    try {
+      const { username, password, displayName, role, allowedRegions } = req.body;
+      if (!username || !password || !displayName) {
+        return res.status(400).json({ error: "Username, password, and display name required" });
+      }
+      const existing = db.prepare("SELECT id FROM users WHERE username = ?").get(username);
+      if (existing) {
+        return res.status(409).json({ error: "Username already exists" });
+      }
+      const id = crypto.randomUUID();
+      const hash = crypto.createHash("sha256").update(password).digest("hex");
+      db.prepare(
+        "INSERT INTO users (id, username, password_hash, display_name, role, allowed_regions) VALUES (?, ?, ?, ?, ?, ?)"
+      ).run(id, username, hash, displayName, role || "viewer", JSON.stringify(allowedRegions || []));
+      res.json({ success: true, id });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create user" });
+    }
+  });
+
+  app.put("/api/auth/users/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      const { displayName, role, allowedRegions, password } = req.body;
+      const user = db.prepare("SELECT id FROM users WHERE id = ?").get(id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      if (displayName !== undefined) {
+        db.prepare("UPDATE users SET display_name = ? WHERE id = ?").run(displayName, id);
+      }
+      if (role !== undefined) {
+        db.prepare("UPDATE users SET role = ? WHERE id = ?").run(role, id);
+      }
+      if (allowedRegions !== undefined) {
+        db.prepare("UPDATE users SET allowed_regions = ? WHERE id = ?").run(JSON.stringify(allowedRegions), id);
+      }
+      if (password) {
+        const hash = crypto.createHash("sha256").update(password).digest("hex");
+        db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hash, id);
+      }
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update user" });
+    }
+  });
+
+  app.delete("/api/auth/users/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      // Prevent deleting the last admin
+      const adminCount = db.prepare("SELECT COUNT(*) as cnt FROM users WHERE role = 'admin'").get() as any;
+      const targetUser = db.prepare("SELECT role FROM users WHERE id = ?").get(id) as any;
+      if (targetUser?.role === "admin" && adminCount.cnt <= 1) {
+        return res.status(400).json({ error: "Cannot delete the last admin user" });
+      }
+      db.prepare("DELETE FROM users WHERE id = ?").run(id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete user" });
     }
   });
 

@@ -52,6 +52,10 @@ const isBusinessDay = (date: Date) => {
   return !BANK_HOLIDAYS_2026.includes(dateStr);
 };
 
+// Filter an array of day records to business days only
+const filterBusinessDays = (data: any[]) =>
+  data.filter((d: any) => isBusinessDay(parse(d.date, "M/d/yyyy", new Date())));
+
 const InsightsLogo = ({ className = "w-20 h-20" }: { className?: string }) => (
   <svg viewBox="0 0 100 100" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
     <circle cx="50" cy="50" r="50" fill="#F59E0B" />
@@ -192,7 +196,7 @@ function ReportContent({
               <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Total Available Liquidity</p>
                 <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-                  {formatCurrency(allData?.[activeRegion][0]?.endingBalance || 0)}
+                  {formatCurrency(filterBusinessDays(allData?.[activeRegion] || [])[0]?.endingBalance || 0)}
                 </p>
                 <div className="mt-2 flex items-center gap-1">
                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -203,9 +207,9 @@ function ReportContent({
                 <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">14-Day Projected Net Flow</p>
                 <p className={clsx(
                   "text-xl sm:text-2xl font-black",
-                  (allData?.[activeRegion].slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                  (filterBusinessDays(allData?.[activeRegion] || []).slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                 )}>
-                  {formatCurrency(allData?.[activeRegion].slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0)}
+                  {formatCurrency(filterBusinessDays(allData?.[activeRegion] || []).slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0)}
                 </p>
                 <div className="mt-2 flex items-center gap-1">
                   <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Forecasted Trend</span>
@@ -249,23 +253,23 @@ function ReportContent({
                 <div className="p-4 sm:p-6 bg-slate-900 text-white rounded-2xl overflow-hidden">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Projected Month-End Balance</p>
                   <p className="text-3xl font-black text-white whitespace-nowrap">
-                    {formatCurrency(allData?.[activeRegion][29]?.endingBalance || 0)}
+                    {formatCurrency(filterBusinessDays(allData?.[activeRegion] || []).slice(-1)[0]?.endingBalance || 0)}
                   </p>
                 </div>
                 <div className="p-4 sm:p-6 bg-slate-900 text-white rounded-2xl overflow-hidden">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Total Monthly Net Flow</p>
                   <p className={clsx(
                     "text-3xl font-black whitespace-nowrap",
-                    (allData?.[activeRegion].slice(0, 30).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0) >= 0 ? "text-emerald-400" : "text-rose-400"
+                    (filterBusinessDays(allData?.[activeRegion] || []).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0) >= 0 ? "text-emerald-400" : "text-rose-400"
                   )}>
-                    {formatCurrency(allData?.[activeRegion].slice(0, 30).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0)}
+                    {formatCurrency(filterBusinessDays(allData?.[activeRegion] || []).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0)}
                   </p>
                 </div>
               </div>
             )}
 
             {(() => {
-              const chartData = allData?.[activeRegion].slice(0, 30).filter((d: any) => isBusinessDay(parse(d.date, "M/d/yyyy", new Date()))) || [];
+              const chartData = filterBusinessDays(allData?.[activeRegion] || []).slice(0, 30);
               const minEntry = chartData.reduce((min: any, d: any) => (d.endingBalance < (min?.endingBalance ?? Infinity) ? d : min), chartData[0]);
               const hasNegative = chartData.some((d: any) => d.endingBalance < 0);
 
@@ -515,7 +519,7 @@ function ReportContent({
                   </thead>
                   <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                     {entityRegions.map((region) => {
-                      const data = allData?.[region as Entity] || [];
+                      const data = filterBusinessDays(allData?.[region as Entity] || []);
                       const balance = data[0]?.endingBalance || 0;
                       const flow7 = data.slice(0, 7).reduce((acc: number, d: any) => acc + d.netFlow, 0);
                       const flow14 = data.slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0);
@@ -537,21 +541,21 @@ function ReportContent({
                     <tr className="text-sm border-t-2 border-slate-900 dark:border-white bg-slate-50/50 dark:bg-slate-800/30">
                       <td className="py-4 font-black text-slate-900 dark:text-white uppercase tracking-tight">Total Consolidated</td>
                       <td className="py-4 text-right font-mono font-black text-slate-900 dark:text-white">
-                        {formatCurrency(entityRegions.reduce((sum, r) => sum + (allData?.[r as Entity]?.[0]?.endingBalance || 0), 0))}
+                        {formatCurrency(entityRegions.reduce((sum, r) => sum + (filterBusinessDays(allData?.[r as Entity] || [])[0]?.endingBalance || 0), 0))}
                       </td>
                       <td className={clsx(
                         "py-4 text-right font-mono font-black",
-                        entityRegions.reduce((sum, r) => sum + (allData?.[r as Entity]?.slice(0, 7).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                        entityRegions.reduce((sum, r) => sum + (filterBusinessDays(allData?.[r as Entity] || []).slice(0, 7).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                       )}>
-                        {entityRegions.reduce((sum, r) => sum + (allData?.[r as Entity]?.slice(0, 7).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0) >= 0 ? "+" : ""}
-                        {formatCurrency(entityRegions.reduce((sum, r) => sum + (allData?.[r as Entity]?.slice(0, 7).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0))}
+                        {entityRegions.reduce((sum, r) => sum + (filterBusinessDays(allData?.[r as Entity] || []).slice(0, 7).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0) >= 0 ? "+" : ""}
+                        {formatCurrency(entityRegions.reduce((sum, r) => sum + (filterBusinessDays(allData?.[r as Entity] || []).slice(0, 7).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0))}
                       </td>
                       <td className={clsx(
                         "py-4 text-right font-mono font-black",
-                        entityRegions.reduce((sum, r) => sum + (allData?.[r as Entity]?.slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                        entityRegions.reduce((sum, r) => sum + (filterBusinessDays(allData?.[r as Entity] || []).slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                       )}>
-                        {entityRegions.reduce((sum, r) => sum + (allData?.[r as Entity]?.slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0) >= 0 ? "+" : ""}
-                        {formatCurrency(entityRegions.reduce((sum, r) => sum + (allData?.[r as Entity]?.slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0))}
+                        {entityRegions.reduce((sum, r) => sum + (filterBusinessDays(allData?.[r as Entity] || []).slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0) >= 0 ? "+" : ""}
+                        {formatCurrency(entityRegions.reduce((sum, r) => sum + (filterBusinessDays(allData?.[r as Entity] || []).slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0))}
                       </td>
                     </tr>
                   </tfoot>
@@ -576,8 +580,8 @@ function ReportContent({
                 <div className="space-y-4">
                   {activeRegion === "Executive" ? (
                     entityRegions.map(region => {
-                      const total = allData?.Executive[0]?.endingBalance || 1;
-                      const regionBal = allData?.[region as Entity][0]?.endingBalance || 0;
+                      const total = filterBusinessDays(allData?.Executive || [])[0]?.endingBalance || 1;
+                      const regionBal = filterBusinessDays(allData?.[region as Entity] || [])[0]?.endingBalance || 0;
                       const pct = (regionBal / total) * 100;
                       return (
                         <div key={region}>
@@ -615,7 +619,7 @@ function ReportContent({
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Risk Exposure (14-Day)</h4>
                 <div className="space-y-4">
                   {(activeRegion === "Executive" ? entityRegions : [activeRegion]).map(region => {
-                    const data = allData?.[region as Entity] || [];
+                    const data = filterBusinessDays(allData?.[region as Entity] || []);
                     const minBal = Math.min(...data.slice(0, 14).map(d => d.endingBalance));
                     const isAtRisk = minBal < 50000;
                     return (
@@ -649,9 +653,9 @@ function ReportContent({
                   </thead>
                   <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                     {(activeRegion === "Executive" ? entityRegions : [activeRegion]).map((region) => {
-                      const data = allData?.[region as Entity].slice(0, 14) || [];
-                      const avgIn = data.reduce((acc: number, d: any) => acc + d.cashIn, 0) / 14;
-                      const avgOut = data.reduce((acc: number, d: any) => acc + d.cashOut, 0) / 14;
+                      const data = filterBusinessDays(allData?.[region as Entity] || []).slice(0, 14);
+                      const avgIn = data.length ? data.reduce((acc: number, d: any) => acc + d.cashIn, 0) / data.length : 0;
+                      const avgOut = data.length ? data.reduce((acc: number, d: any) => acc + d.cashOut, 0) / data.length : 0;
                       return (
                         <tr key={region} className="text-sm">
                           <td className="py-4 font-bold text-slate-900 dark:text-white">{activeRegion === "Executive" ? region : "14-Day Average"}</td>
@@ -719,17 +723,19 @@ interface Props {
   dateFormat?: string;
   companyLogo?: string | null;
   theme?: 'light' | 'dark' | 'system';
+  readOnly?: boolean;
 }
 
-export default function ReportsView({ 
-  regions, 
-  allData, 
-  reports, 
+export default function ReportsView({
+  regions,
+  allData,
+  reports,
   onReportsChange,
   currency = 'USD',
   dateFormat = 'MM/DD/YYYY',
   companyLogo = null,
-  theme = 'light'
+  theme = 'light',
+  readOnly = false
 }: Props) {
   const entityRegions = regions.filter(r => r !== "Executive");
   const [activeRegion, setActiveRegion] = useState<Entity>(regions[0]);
@@ -1088,27 +1094,28 @@ export default function ReportsView({
   // Calculate report metrics
   const getReportMetrics = () => {
     if (!allData) return null;
-    const regionData = allData[activeRegion];
+    const regionData = filterBusinessDays(allData[activeRegion]);
     const netFlow14 = regionData.slice(0, 14).reduce((acc, d) => acc + d.netFlow, 0);
     const minBalance14 = Math.min(...regionData.slice(0, 14).map(d => d.endingBalance));
-    
-    // Find all payrolls in next 14 days
-    const payrolls: { 
-      date: string, 
-      totalAmount: number, 
-      isFunded: boolean, 
-      breakdown: { name: string, amount: number, isFunded: boolean }[] 
+
+    // Find all payrolls in next 14 business days
+    const payrolls: {
+      date: string,
+      totalAmount: number,
+      isFunded: boolean,
+      breakdown: { name: string, amount: number, isFunded: boolean }[]
     }[] = [];
-    
-    for (let i = 0; i < 14; i++) {
+
+    for (let i = 0; i < Math.min(14, regionData.length); i++) {
       const day = regionData[i];
       if (day.payroll > 0) {
         const breakdown: { name: string, amount: number, isFunded: boolean }[] = [];
-        
+
         if (activeRegion === "Executive") {
           entityRegions.forEach(r => {
-            const rDay = allData[r][i];
-            if (rDay.payroll > 0) {
+            const rBizDays = filterBusinessDays(allData[r]);
+            const rDay = rBizDays[i];
+            if (rDay && rDay.payroll > 0) {
               breakdown.push({
                 name: r,
                 amount: rDay.payroll,
@@ -1375,8 +1382,8 @@ export default function ReportsView({
         {/* Upload Section */}
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-            <h3 className="font-bold text-slate-900 dark:text-white px-2">Upload Regional Reports</h3>
-            
+            <h3 className="font-bold text-slate-900 dark:text-white px-2">{readOnly ? "Report Types" : "Upload Regional Reports"}</h3>
+
             <div className="space-y-4">
               {[
                 { id: "projection", label: "Revenue Projections", icon: FileUp, color: "emerald", desc: "Forecasted inflows" },
@@ -1386,7 +1393,9 @@ export default function ReportsView({
               ].map((type) => (
                 <button
                   key={type.id}
+                  disabled={readOnly}
                   onClick={() => {
+                    if (readOnly) return;
                     setUploadType(type.id as any);
                     triggerFileInput();
                   }}
@@ -1451,8 +1460,8 @@ export default function ReportsView({
                 <h3 className="font-bold text-slate-900 dark:text-white">Recent Documents - {activeRegion}</h3>
                 <div className="flex items-center gap-4">
                   <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{filteredReports.length} Files</span>
-                  {filteredReports.length > 0 && (
-                    <button 
+                  {filteredReports.length > 0 && !readOnly && (
+                    <button
                       onClick={() => {
                         onReportsChange(activeRegion === "Executive" ? [] : reports.filter(r => r.region !== activeRegion));
                       }}
@@ -1498,12 +1507,12 @@ export default function ReportsView({
                           <button className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 rounded-lg shadow-sm transition-all">
                             <Download className="w-4 h-4" />
                           </button>
-                          <button 
+                          {!readOnly && <button
                             onClick={() => handleDeleteReport(report.id)}
                             className="p-2 text-slate-400 dark:text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
                           >
                             <Trash2 className="w-4 h-4" />
-                          </button>
+                          </button>}
                         </div>
                       </motion.div>
                     ))

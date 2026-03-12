@@ -16,6 +16,7 @@ interface Props {
   isMaximized?: boolean;
   currency?: string;
   regions?: string[];
+  readOnly?: boolean;
 }
 
 export default function SummaryCards({ 
@@ -28,7 +29,8 @@ export default function SummaryCards({
   manualBalances,
   isMaximized = false,
   currency = 'USD',
-  regions = []
+  regions = [],
+  readOnly = false
 }: Props) {
   const [isNetFlowExpanded, setIsNetFlowExpanded] = useState(isMaximized);
   const [isLiquidityExpanded, setIsLiquidityExpanded] = useState(isMaximized);
@@ -97,7 +99,7 @@ export default function SummaryCards({
       label: `${currentEntity} Account`,
       value: value || 0,
       type: "neutral",
-      editable: true
+      editable: !readOnly
     }));
   };
 
@@ -415,7 +417,7 @@ export default function SummaryCards({
                               }`}>
                                 {formatCurrency(item.value)}
                               </span>
-                              {currentEntity === "Executive" && card.id === "liquidity" && (
+                              {!readOnly && currentEntity === "Executive" && card.id === "liquidity" && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();

@@ -12,6 +12,7 @@ interface DisbursementEstimatesProps {
   onCategoriesChange: (categories: EstimateCategory[]) => void;
   isMaximized?: boolean;
   currency?: string;
+  readOnly?: boolean;
 }
 
 const PERIODS: CyclePeriod[] = ["Daily", "Weekly", "Bi-Weekly", "Monthly", "One-Time"];
@@ -21,7 +22,8 @@ export default function DisbursementEstimates({
   categories, 
   onCategoriesChange, 
   isMaximized = false,
-  currency = 'USD'
+  currency = 'USD',
+  readOnly = false
 }: DisbursementEstimatesProps) {
   const [localCategories, setLocalCategories] = useState<EstimateCategory[]>(categories);
   const [hasChanges, setHasChanges] = useState(false);
@@ -70,24 +72,26 @@ export default function DisbursementEstimates({
           </div>
           <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">{title || "Forecast Adjustments"}</h3>
         </div>
-        <div className="flex items-center gap-2">
-          {hasChanges && (
-            <button 
-              onClick={handleApply}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors shadow-sm"
+        {!readOnly && (
+          <div className="flex items-center gap-2">
+            {hasChanges && (
+              <button
+                onClick={handleApply}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors shadow-sm"
+              >
+                <Save className="w-3.5 h-3.5" />
+                Update Estimates
+              </button>
+            )}
+            <button
+              onClick={handleAdd}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-lg text-xs font-bold hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors"
             >
-              <Save className="w-3.5 h-3.5" />
-              Update Estimates
+              <Plus className="w-3.5 h-3.5" />
+              Add Item
             </button>
-          )}
-          <button 
-            onClick={handleAdd}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-lg text-xs font-bold hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Add Item
-          </button>
-        </div>
+          </div>
+        )}
       </div>
       
       <div className={`p-6 ${isMaximized ? 'grid grid-cols-2 gap-x-12 gap-y-10 space-y-0' : 'space-y-10'}`}>
@@ -101,38 +105,43 @@ export default function DisbursementEstimates({
               <div className="flex justify-between items-start gap-4">
                 <div className="flex-1 space-y-3">
                   <div className="flex items-center gap-2">
-                    <input 
+                    <input
                       type="text"
                       value={cat.label}
+                      disabled={readOnly}
                       onChange={(e) => handleUpdate(cat.id, { label: e.target.value })}
-                      className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-transparent border-b border-transparent hover:border-slate-200 dark:hover:border-slate-700 focus:border-emerald-500 focus:outline-none transition-all w-full"
+                      className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-transparent border-b border-transparent hover:border-slate-200 dark:hover:border-slate-700 focus:border-emerald-500 focus:outline-none transition-all w-full disabled:cursor-default disabled:hover:border-transparent"
                     />
-                    <button 
-                      onClick={() => handleDelete(cat.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 dark:text-slate-600 hover:text-rose-500 transition-all"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {!readOnly && (
+                      <button
+                        onClick={() => handleDelete(cat.id)}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 dark:text-slate-600 hover:text-rose-500 transition-all"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                   
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="space-y-1">
                       <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Base Amount</span>
-                      <MathInput 
+                      <MathInput
                         value={cat.baseAmount}
                         onChange={(val) => handleUpdate(cat.id, { baseAmount: val })}
                         prefix="$"
-                        className="w-full pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                        disabled={readOnly}
+                        className={`w-full pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all ${readOnly ? 'cursor-default' : ''}`}
                       />
                     </div>
                     <div className="space-y-1">
                       <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Cycle Period</span>
                       <div className="relative">
                         <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-3.5 h-3.5" />
-                        <select 
+                        <select
                           value={cat.period}
+                          disabled={readOnly}
                           onChange={(e) => handleUpdate(cat.id, { period: e.target.value as CyclePeriod })}
-                          className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-bold text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none transition-all appearance-none cursor-pointer"
+                          className={`w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-bold text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none transition-all appearance-none ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}
                         >
                           {PERIODS.map(p => (
                             <option key={p} value={p}>{p}</option>
@@ -143,11 +152,12 @@ export default function DisbursementEstimates({
                     <div className="space-y-1">
                       <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Start Date</span>
                       <div className="relative">
-                        <input 
+                        <input
                           type="date"
                           value={cat.startDate}
+                          disabled={readOnly}
                           onChange={(e) => handleUpdate(cat.id, { startDate: e.target.value })}
-                          className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] font-bold text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none transition-all cursor-pointer"
+                          className={`w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] font-bold text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none transition-all ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}
                         />
                       </div>
                     </div>
@@ -197,14 +207,15 @@ export default function DisbursementEstimates({
                     +{(cat.adjustment * 100).toFixed(0)}%
                   </span>
                 </div>
-                <input 
-                  type="range" 
-                  min="0" 
-                  max="0.25" 
-                  step="0.01" 
+                <input
+                  type="range"
+                  min="0"
+                  max="0.25"
+                  step="0.01"
                   value={cat.adjustment}
+                  disabled={readOnly}
                   onChange={(e) => handleUpdate(cat.id, { adjustment: parseFloat(e.target.value) })}
-                  className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                  className={`w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none accent-emerald-500 ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}
                 />
               </div>
 
