@@ -98,6 +98,24 @@ db.exec(`
     display_name TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'viewer',
     allowed_regions TEXT NOT NULL DEFAULT '[]',
+    location TEXT NOT NULL DEFAULT 'executive',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+// Add location column if missing (migration for existing DBs)
+try {
+  db.exec("ALTER TABLE users ADD COLUMN location TEXT NOT NULL DEFAULT 'executive'");
+} catch (e) {
+  // Column already exists
+}
+
+// === Departments table ===
+db.exec(`
+  CREATE TABLE IF NOT EXISTS departments (
+    id TEXT PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL,
+    regions TEXT NOT NULL DEFAULT '[]',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
@@ -109,8 +127,8 @@ if (userCount.cnt === 0) {
   // Simple hash for default admin/admin credentials
   const adminHash = crypto.createHash("sha256").update("admin").digest("hex");
   db.prepare(
-    "INSERT INTO users (id, username, password_hash, display_name, role, allowed_regions) VALUES (?, ?, ?, ?, ?, ?)"
-  ).run(adminId, "admin", adminHash, "Administrator", "admin", "[]");
+    "INSERT INTO users (id, username, password_hash, display_name, role, allowed_regions, location) VALUES (?, ?, ?, ?, ?, ?, ?)"
+  ).run(adminId, "admin", adminHash, "Administrator", "admin", "[]", "executive");
   console.log("Seeded default admin user (admin/admin)");
 }
 
@@ -944,7 +962,7 @@ async function startServer() {
       }
       const hash = crypto.createHash("sha256").update(password).digest("hex");
       const user = db.prepare(
-        "SELECT id, username, display_name, role, allowed_regions FROM users WHERE username = ? AND password_hash = ?"
+        "SELECT id, username, display_name, role, allowed_regions, location FROM users WHERE username = ? AND password_hash = ?"
       ).get(username, hash) as any;
       if (!user) {
         return res.status(401).json({ error: "Invalid credentials" });
@@ -955,7 +973,8 @@ async function startServer() {
           username: user.username,
           displayName: user.display_name,
           role: user.role,
-          allowedRegions: JSON.parse(user.allowed_regions || "[]")
+          allowedRegions: JSON.parse(user.allowed_regions || "[]"),
+          location: user.location || "executive"
         }
       });
     } catch (error) {
@@ -966,7 +985,7 @@ async function startServer() {
   app.get("/api/auth/users", (req, res) => {
     try {
       const rows = db.prepare(
-        "SELECT id, username, display_name, role, allowed_regions, created_at FROM users ORDER BY created_at"
+        "SELECT id, username, display_name, role, allowed_regions, location, created_at FROM users ORDER BY created_at"
       ).all() as any[];
       res.json(rows.map(r => ({
         id: r.id,
@@ -974,6 +993,7 @@ async function startServer() {
         displayName: r.display_name,
         role: r.role,
         allowedRegions: JSON.parse(r.allowed_regions || "[]"),
+        location: r.location || "executive",
         createdAt: r.created_at
       })));
     } catch (error) {
@@ -983,7 +1003,7 @@ async function startServer() {
 
   app.post("/api/auth/users", (req, res) => {
     try {
-      const { username, password, displayName, role, allowedRegions } = req.body;
+      const { username, password, displayName, role, allowedRegions, location } = req.body;
       if (!username || !password || !displayName) {
         return res.status(400).json({ error: "Username, password, and display name required" });
       }
@@ -994,8 +1014,8 @@ async function startServer() {
       const id = crypto.randomUUID();
       const hash = crypto.createHash("sha256").update(password).digest("hex");
       db.prepare(
-        "INSERT INTO users (id, username, password_hash, display_name, role, allowed_regions) VALUES (?, ?, ?, ?, ?, ?)"
-      ).run(id, username, hash, displayName, role || "viewer", JSON.stringify(allowedRegions || []));
+        "INSERT INTO users (id, username, password_hash, display_name, role, allowed_regions, location) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      ).run(id, username, hash, displayName, role || "viewer", JSON.stringify(allowedRegions || []), location || "executive");
       res.json({ success: true, id });
     } catch (error) {
       res.status(500).json({ error: "Failed to create user" });
@@ -1005,7 +1025,7 @@ async function startServer() {
   app.put("/api/auth/users/:id", (req, res) => {
     try {
       const { id } = req.params;
-      const { displayName, role, allowedRegions, password } = req.body;
+      const { displayName, role, allowedRegions, password, location } = req.body;
       const user = db.prepare("SELECT id FROM users WHERE id = ?").get(id);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
@@ -1022,6 +1042,9 @@ async function startServer() {
       if (password) {
         const hash = crypto.createHash("sha256").update(password).digest("hex");
         db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hash, id);
+      }
+      if (location !== undefined) {
+        db.prepare("UPDATE users SET location = ? WHERE id = ?").run(location, id);
       }
       res.json({ success: true });
     } catch (error) {
@@ -1042,6 +1065,74 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete user" });
+    }
+  });
+
+  // ========== Department API ==========
+  app.get("/api/departments", (req, res) => {
+    try {
+      const rows = db.prepare("SELECT * FROM departments ORDER BY name").all() as any[];
+      res.json(rows.map(r => ({
+        id: r.id,
+        name: r.name,
+        regions: JSON.parse(r.regions || "[]"),
+        createdAt: r.created_at
+      })));
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch departments" });
+    }
+  });
+
+  app.post("/api/departments", (req, res) => {
+    try {
+      const { name } = req.body;
+      if (!name || !name.trim()) {
+        return res.status(400).json({ error: "Department name required" });
+      }
+      const existing = db.prepare("SELECT id FROM departments WHERE name = ?").get(name.trim());
+      if (existing) {
+        return res.status(409).json({ error: "Department already exists" });
+      }
+      const id = crypto.randomUUID();
+      db.prepare("INSERT INTO departments (id, name, regions) VALUES (?, ?, ?)").run(id, name.trim(), "[]");
+      res.json({ success: true, id, name: name.trim() });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create department" });
+    }
+  });
+
+  app.put("/api/departments/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      const { regions } = req.body;
+      const dept = db.prepare("SELECT id FROM departments WHERE id = ?").get(id);
+      if (!dept) return res.status(404).json({ error: "Department not found" });
+      if (regions !== undefined) {
+        db.prepare("UPDATE departments SET regions = ? WHERE id = ?").run(JSON.stringify(regions), id);
+      }
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update department" });
+    }
+  });
+
+  app.delete("/api/departments/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      const dept = db.prepare("SELECT name FROM departments WHERE id = ?").get(id) as any;
+      if (!dept) return res.status(404).json({ error: "Department not found" });
+
+      // Clean up department-scoped data (regions prefixed with dept::name::)
+      const prefix = `dept::${dept.name}::`;
+      db.prepare("DELETE FROM estimates WHERE region LIKE ?").run(prefix + "%");
+      db.prepare("DELETE FROM disbursements WHERE region LIKE ?").run(prefix + "%");
+      db.prepare("DELETE FROM balances WHERE region LIKE ?").run(prefix + "%");
+      db.prepare("DELETE FROM changelog WHERE region LIKE ?").run(prefix + "%");
+
+      db.prepare("DELETE FROM departments WHERE id = ?").run(id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete department" });
     }
   });
 

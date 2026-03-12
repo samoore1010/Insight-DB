@@ -41,7 +41,7 @@ const isBusinessDay = (date: Date) => {
 export default function App() {
   // === Auth State ===
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem("authUser");
+    const saved = sessionStorage.getItem("authUser");
     return saved ? JSON.parse(saved) : null;
   });
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -53,7 +53,7 @@ export default function App() {
     } catch {}
   }, []);
 
-  const handleLogin = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const handleLogin = async (username: string, password: string, location?: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -62,8 +62,17 @@ export default function App() {
       });
       const data = await res.json();
       if (!res.ok) return { success: false, error: data.error || "Login failed" };
-      setCurrentUser(data.user);
-      localStorage.setItem("authUser", JSON.stringify(data.user));
+      const user = data.user;
+      // Admin can log in to any location; non-admin must match their assigned location
+      if (location && user.role !== "admin" && user.location !== location) {
+        return { success: false, error: `You are not authorized for the ${location} dashboard` };
+      }
+      // For admin, override location to what they selected on login
+      if (location && user.role === "admin") {
+        user.location = location;
+      }
+      setCurrentUser(user);
+      sessionStorage.setItem("authUser", JSON.stringify(user));
       return { success: true };
     } catch {
       return { success: false, error: "Connection failed" };
@@ -72,15 +81,15 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
-    localStorage.removeItem("authUser");
+    sessionStorage.removeItem("authUser");
   };
 
-  const handleCreateUser = async (username: string, password: string, displayName: string, role: "admin" | "viewer", allowedRegions: string[]): Promise<{ success: boolean; error?: string }> => {
+  const handleCreateUser = async (username: string, password: string, displayName: string, role: "admin" | "viewer", allowedRegions: string[], location?: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const res = await fetch("/api/auth/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, displayName, role, allowedRegions })
+        body: JSON.stringify({ username, password, displayName, role, allowedRegions, location: location || "executive" })
       });
       const data = await res.json();
       if (!res.ok) return { success: false, error: data.error };
@@ -124,6 +133,86 @@ export default function App() {
     if (currentUser?.role === "admin") refreshUsers();
   }, [currentUser, refreshUsers]);
 
+  // Determine department mode from current user's location
+  const isDepartmentMode = currentUser ? currentUser.location !== "executive" : false;
+  const deptName = currentUser?.location || "executive";
+  const deptPrefix = isDepartmentMode ? `dept::${deptName}::` : "";
+
+  // Helper: get display name for a region (strips dept prefix)
+  const regionDisplayName = useCallback((region: string) => {
+    if (deptPrefix && region.startsWith(deptPrefix)) {
+      return region.slice(deptPrefix.length);
+    }
+    return region;
+  }, [deptPrefix]);
+
+  // === Department State ===
+  interface Department { id: string; name: string; regions: string[]; }
+  const [departments, setDepartments] = useState<Department[]>([]);
+
+  const fetchDepartments = useCallback(async () => {
+    try {
+      const res = await fetch("/api/departments");
+      if (res.ok) setDepartments(await res.json());
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (currentUser) fetchDepartments();
+  }, [currentUser, fetchDepartments]);
+
+  // Load department regions when in department mode
+  useEffect(() => {
+    if (!isDepartmentMode || departments.length === 0) return;
+    const dept = departments.find(d => d.name === deptName);
+    if (dept) {
+      const namespacedRegions = dept.regions.map(r => `dept::${deptName}::${r}`);
+      setRegions(namespacedRegions);
+      // Initialize parser data for department regions
+      const parsed = parseLiquidityData(namespacedRegions);
+      setMultiEntityData(parsed);
+    }
+  }, [isDepartmentMode, departments, deptName]);
+
+  const handleCreateDepartment = async (name: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch("/api/departments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name })
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error };
+      await fetchDepartments();
+      return { success: true };
+    } catch {
+      return { success: false, error: "Connection failed" };
+    }
+  };
+
+  const handleDeleteDepartment = async (id: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch(`/api/departments/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error };
+      await fetchDepartments();
+      return { success: true };
+    } catch {
+      return { success: false, error: "Connection failed" };
+    }
+  };
+
+  const handleUpdateDepartmentRegions = async (deptId: string, newRegions: string[]): Promise<void> => {
+    try {
+      await fetch(`/api/departments/${deptId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ regions: newRegions })
+      });
+      await fetchDepartments();
+    } catch {}
+  };
+
   // === Main App State ===
   const [multiEntityData, setMultiEntityData] = useState<Record<Entity, DailyData[]> | null>(null);
   const [currentEntity, setCurrentEntity] = useState<Entity>(EXECUTIVE_ENTITY);
@@ -131,8 +220,12 @@ export default function App() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [forecastDays, setForecastDays] = useState(14);
   const [regions, setRegions] = useState<string[]>(() => {
-    const saved = localStorage.getItem('regions');
-    return saved ? JSON.parse(saved) : DEFAULT_REGIONS;
+    if (!isDepartmentMode) {
+      const saved = localStorage.getItem('regions');
+      return saved ? JSON.parse(saved) : DEFAULT_REGIONS;
+    }
+    // Department mode: will be loaded from department record
+    return [];
   });
   const [isSimulationMode, setIsSimulationMode] = useState(false);
 
@@ -286,38 +379,83 @@ export default function App() {
       try {
         const response = await fetch("/api/data");
         const data = await response.json();
-        if (data.entityEstimates) setEntityEstimates(prev => ({ ...prev, ...data.entityEstimates }));
-        
-        // Cleanup manualOverrides: Remove cashIn if it exists (legacy from old report system)
-        if (data.manualOverrides) {
-          const cleanedOverrides: any = {};
-          Object.entries(data.manualOverrides).forEach(([region, days]: [string, any]) => {
-            cleanedOverrides[region] = {};
-            Object.entries(days).forEach(([date, values]: [string, any]) => {
-              const { cashIn, ...rest } = values;
-              if (Object.keys(rest).length > 0) {
-                cleanedOverrides[region][date] = rest;
-              }
+
+        if (isDepartmentMode) {
+          // Department mode: only load data for namespaced regions
+          // The blob data might contain department-scoped keys, so filter accordingly
+          if (data.entityEstimates) {
+            const filtered: Record<string, any> = {};
+            Object.entries(data.entityEstimates).forEach(([k, v]) => {
+              if (k.startsWith(deptPrefix)) filtered[k] = v;
             });
-          });
-          setManualOverrides(prev => ({ ...prev, ...cleanedOverrides }));
+            if (Object.keys(filtered).length > 0) setEntityEstimates(prev => ({ ...prev, ...filtered }));
+          }
+          if (data.manualOverrides) {
+            const filtered: Record<string, any> = {};
+            Object.entries(data.manualOverrides).forEach(([region, days]: [string, any]) => {
+              if (!region.startsWith(deptPrefix)) return;
+              filtered[region] = {};
+              Object.entries(days).forEach(([date, values]: [string, any]) => {
+                const { cashIn, ...rest } = values;
+                if (Object.keys(rest).length > 0) filtered[region][date] = rest;
+              });
+            });
+            if (Object.keys(filtered).length > 0) setManualOverrides(prev => ({ ...prev, ...filtered }));
+          }
+          if (data.manualBalances) {
+            const filtered: Record<string, any> = {};
+            Object.entries(data.manualBalances).forEach(([k, v]) => {
+              if (k.startsWith(deptPrefix)) filtered[k] = v;
+            });
+            if (Object.keys(filtered).length > 0) setManualBalances(prev => ({ ...prev, ...filtered }));
+          }
+        } else {
+          // Executive mode: load all non-department data
+          if (data.entityEstimates) {
+            const filtered: Record<string, any> = {};
+            Object.entries(data.entityEstimates).forEach(([k, v]) => {
+              if (!k.startsWith("dept::")) filtered[k] = v;
+            });
+            setEntityEstimates(prev => ({ ...prev, ...filtered }));
+          }
+          if (data.manualOverrides) {
+            const cleanedOverrides: any = {};
+            Object.entries(data.manualOverrides).forEach(([region, days]: [string, any]) => {
+              if (region.startsWith("dept::")) return;
+              cleanedOverrides[region] = {};
+              Object.entries(days).forEach(([date, values]: [string, any]) => {
+                const { cashIn, ...rest } = values;
+                if (Object.keys(rest).length > 0) cleanedOverrides[region][date] = rest;
+              });
+            });
+            setManualOverrides(prev => ({ ...prev, ...cleanedOverrides }));
+          }
+          if (data.manualBalances) {
+            const filtered: Record<string, any> = {};
+            Object.entries(data.manualBalances).forEach(([k, v]) => {
+              if (!k.startsWith("dept::")) filtered[k] = v;
+            });
+            setManualBalances(prev => ({ ...prev, ...filtered }));
+          }
         }
-        
-        if (data.manualBalances) setManualBalances(prev => ({ ...prev, ...data.manualBalances }));
+
         if (data.reports) setReports(data.reports);
       } catch (error) {
         console.error("Failed to load data:", error);
       } finally {
-        const savedRegions = localStorage.getItem('regions');
-        const loadedRegions: string[] = savedRegions ? JSON.parse(savedRegions) : DEFAULT_REGIONS;
-        setRegions(loadedRegions);
-        const parsed = parseLiquidityData(loadedRegions);
-        setMultiEntityData(parsed);
+        if (!isDepartmentMode) {
+          const savedRegions = localStorage.getItem('regions');
+          const loadedRegions: string[] = savedRegions ? JSON.parse(savedRegions) : DEFAULT_REGIONS;
+          setRegions(loadedRegions);
+          const parsed = parseLiquidityData(loadedRegions);
+          setMultiEntityData(parsed);
+        }
+        // Department regions are loaded via the departments effect
         setIsLoaded(true);
       }
     };
     loadData();
-  }, []);
+  }, [isDepartmentMode, deptPrefix]);
 
   // Granular sync: save per-region changes to normalized tables + keep blob in sync
   useEffect(() => {
@@ -579,6 +717,11 @@ export default function App() {
       }
     });
 
+    // In department mode, no Executive consolidated view
+    if (isDepartmentMode) {
+      return regionAdjusted;
+    }
+
     // Build Executive consolidated view
     const firstRegion = regions[0];
     const firstData = regionAdjusted[firstRegion];
@@ -629,7 +772,7 @@ export default function App() {
       ...regionAdjusted,
       [EXECUTIVE_ENTITY]: execAdj
     };
-  }, [multiEntityData, entityEstimates, manualOverrides, manualBalances, simulationOverrides, reportData, regions]);
+  }, [multiEntityData, entityEstimates, manualOverrides, manualBalances, simulationOverrides, reportData, regions, isDepartmentMode]);
 
   const currentData = useMemo(() => {
     if (!allAdjustedData) return [];
@@ -878,29 +1021,66 @@ export default function App() {
   };
 
 
-  const handleAddRegion = (name: string) => {
-    if (!name.trim() || regions.includes(name) || name === EXECUTIVE_ENTITY) return;
-    const newRegions = [...regions, name];
-    setRegions(newRegions);
-    localStorage.setItem('regions', JSON.stringify(newRegions));
+  const handleAddRegion = async (name: string) => {
+    if (!name.trim() || name === EXECUTIVE_ENTITY) return;
 
-    // Initialize state for the new region
-    setEntityEstimates(prev => ({ ...prev, [name]: makeDefaultEstimates(name) }));
-    setManualOverrides(prev => ({ ...prev, [name]: {} }));
-    setManualBalances(prev => ({ ...prev, [name]: { main: 0 } }));
-    setSimulationOverrides(prev => ({ ...prev, [name]: {} }));
+    if (isDepartmentMode) {
+      // Department mode: add namespaced region
+      const namespacedName = `${deptPrefix}${name}`;
+      if (regions.includes(namespacedName)) return;
+      const newRegions = [...regions, namespacedName];
+      setRegions(newRegions);
 
-    // Regenerate parser data with new regions
-    const parsed = parseLiquidityData(newRegions);
-    setMultiEntityData(parsed);
+      // Update department record on server
+      const dept = departments.find(d => d.name === deptName);
+      if (dept) {
+        const displayRegions = [...dept.regions, name];
+        await handleUpdateDepartmentRegions(dept.id, displayRegions);
+      }
+
+      // Initialize state for the new region
+      setEntityEstimates(prev => ({ ...prev, [namespacedName]: makeDefaultEstimates(namespacedName) }));
+      setManualOverrides(prev => ({ ...prev, [namespacedName]: {} }));
+      setManualBalances(prev => ({ ...prev, [namespacedName]: { main: 0 } }));
+      setSimulationOverrides(prev => ({ ...prev, [namespacedName]: {} }));
+
+      // Regenerate parser data with new regions
+      const parsed = parseLiquidityData(newRegions);
+      setMultiEntityData(parsed);
+    } else {
+      // Executive mode: original behavior
+      if (regions.includes(name)) return;
+      const newRegions = [...regions, name];
+      setRegions(newRegions);
+      localStorage.setItem('regions', JSON.stringify(newRegions));
+
+      setEntityEstimates(prev => ({ ...prev, [name]: makeDefaultEstimates(name) }));
+      setManualOverrides(prev => ({ ...prev, [name]: {} }));
+      setManualBalances(prev => ({ ...prev, [name]: { main: 0 } }));
+      setSimulationOverrides(prev => ({ ...prev, [name]: {} }));
+
+      const parsed = parseLiquidityData(newRegions);
+      setMultiEntityData(parsed);
+    }
   };
 
-  const handleDeleteRegion = (name: string) => {
+  const handleDeleteRegion = async (name: string) => {
     if (name === EXECUTIVE_ENTITY || !regions.includes(name)) return;
     const newRegions = regions.filter(r => r !== name);
-    if (newRegions.length === 0) return; // Must have at least one region
+    if (newRegions.length === 0 && !isDepartmentMode) return; // Executive must have at least one region
     setRegions(newRegions);
-    localStorage.setItem('regions', JSON.stringify(newRegions));
+
+    if (isDepartmentMode) {
+      // Update department record on server
+      const dept = departments.find(d => d.name === deptName);
+      if (dept) {
+        const displayName = regionDisplayName(name);
+        const displayRegions = dept.regions.filter(r => r !== displayName);
+        await handleUpdateDepartmentRegions(dept.id, displayRegions);
+      }
+    } else {
+      localStorage.setItem('regions', JSON.stringify(newRegions));
+    }
 
     // Clean up state for the removed region
     setEntityEstimates(prev => { const { [name]: _, ...rest } = prev; return rest; });
@@ -908,8 +1088,10 @@ export default function App() {
     setManualBalances(prev => { const { [name]: _, ...rest } = prev; return rest; });
     setSimulationOverrides(prev => { const { [name]: _, ...rest } = prev; return rest; });
 
-    // If currently viewing the deleted region, switch to Executive
-    if (currentEntity === name) setCurrentEntity(EXECUTIVE_ENTITY);
+    // If currently viewing the deleted region, switch
+    if (currentEntity === name) {
+      setCurrentEntity(isDepartmentMode ? (newRegions[0] || "") : EXECUTIVE_ENTITY);
+    }
 
     // Regenerate parser data without the removed region
     const parsed = parseLiquidityData(newRegions);
@@ -923,11 +1105,18 @@ export default function App() {
 
   // Filter regions by user permissions
   const hasRegionRestriction = currentUser.allowedRegions && currentUser.allowedRegions.length > 0;
-  const canSeeExecutive = !hasRegionRestriction || currentUser.role === "admin";
+  const canSeeExecutive = !isDepartmentMode && (!hasRegionRestriction || currentUser.role === "admin");
   const isViewOnly = currentUser.role === "viewer";
 
   // Redirect if current entity is not accessible
-  if (hasRegionRestriction && currentUser.role !== "admin") {
+  if (isDepartmentMode) {
+    // Department mode: no Executive entity, redirect to first region or stay empty
+    if (currentEntity === EXECUTIVE_ENTITY || !regions.includes(currentEntity)) {
+      if (regions.length > 0 && currentEntity !== regions[0]) {
+        setCurrentEntity(regions[0]);
+      }
+    }
+  } else if (hasRegionRestriction && currentUser.role !== "admin") {
     if (currentEntity === EXECUTIVE_ENTITY || !currentUser.allowedRegions.includes(currentEntity)) {
       const firstAllowed = regions.find(r => currentUser.allowedRegions.includes(r));
       if (firstAllowed && currentEntity !== firstAllowed) {
@@ -936,14 +1125,75 @@ export default function App() {
     }
   }
 
-  const visibleRegions = hasRegionRestriction && currentUser.role !== "admin"
-    ? regions.filter(r => currentUser.allowedRegions.includes(r))
-    : regions;
+  const visibleRegions = isDepartmentMode
+    ? regions
+    : (hasRegionRestriction && currentUser.role !== "admin"
+      ? regions.filter(r => currentUser.allowedRegions.includes(r))
+      : regions);
 
   const navigation = [
     ...(canSeeExecutive ? [{ id: EXECUTIVE_ENTITY, label: "Executive View", icon: Earth }] : []),
-    ...visibleRegions.map(r => ({ id: r, label: r, icon: Building2 })),
+    ...visibleRegions.map(r => ({ id: r, label: isDepartmentMode ? regionDisplayName(r) : r, icon: Building2 })),
   ];
+
+  // Department mode with no regions yet: show empty state
+  if (isDepartmentMode && regions.length === 0) {
+    return (
+      <div className="h-screen bg-slate-50 dark:bg-slate-950 flex overflow-hidden">
+        <aside className="w-60 bg-slate-900 dark:bg-slate-950 text-slate-300 hidden lg:flex flex-col h-full border-r border-slate-800 dark:border-slate-800/50">
+          <div className="p-6 flex items-center gap-3 border-b border-slate-800 dark:border-slate-800/50">
+            <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+              <Building2 className="text-white w-5 h-5" />
+            </div>
+            <span className="font-bold text-white tracking-tight">{deptName}</span>
+          </div>
+          <nav className="flex-1 p-4 space-y-1">
+            <div className="px-4 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Regions</div>
+            <p className="px-4 py-2 text-xs text-slate-500 italic">No regions yet</p>
+          </nav>
+          <div className="p-4 border-t border-slate-800 dark:border-slate-800/50 space-y-1">
+            <button onClick={() => setActiveView("settings")} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all bg-emerald-500/10 text-emerald-400">
+              <Settings className="w-5 h-5" />
+              Settings
+            </button>
+          </div>
+        </aside>
+        <div className="flex-1 flex flex-col items-center justify-center p-8">
+          {activeView === "settings" ? (
+            <div className="w-full max-w-4xl overflow-y-auto max-h-full">
+              <SettingsView
+                theme={theme} onThemeChange={handleThemeChange} currency={currency} onCurrencyChange={handleCurrencyChange}
+                dateFormat={dateFormat} onDateFormatChange={handleDateFormatChange} companyLogo={companyLogo}
+                onCompanyLogoChange={handleCompanyLogoChange} onExportData={handleExportData} onResetData={handleResetData}
+                regions={regions} onAddRegion={handleAddRegion} onDeleteRegion={handleDeleteRegion}
+                currentUser={currentUser} allUsers={allUsers} onCreateUser={handleCreateUser}
+                onUpdateUser={handleUpdateUser} onDeleteUser={handleDeleteUser} onLogout={handleLogout}
+                departments={departments} onCreateDepartment={handleCreateDepartment}
+                onDeleteDepartment={handleDeleteDepartment} isDepartmentMode={isDepartmentMode}
+                regionDisplayName={regionDisplayName}
+              />
+            </div>
+          ) : (
+            <div className="text-center">
+              <div className="w-16 h-16 bg-slate-200 dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Building2 className="w-8 h-8 text-slate-400" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{deptName} Dashboard</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 max-w-md">
+                This department doesn't have any regions yet. Go to Settings to add your first region and start building your dashboard.
+              </p>
+              <button
+                onClick={() => setActiveView("settings")}
+                className="px-6 py-3 bg-emerald-500 text-white font-bold rounded-xl text-sm hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
+              >
+                Go to Settings
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (!stats || !allAdjustedData) return null;
 
@@ -955,11 +1205,11 @@ export default function App() {
           <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
             <Building2 className="text-white w-5 h-5" />
           </div>
-          <span className="font-bold text-white tracking-tight">Insight Treasury</span>
+          <span className="font-bold text-white tracking-tight">{isDepartmentMode ? deptName : "Insight Treasury"}</span>
         </div>
-        
+
         <nav className="flex-1 p-4 space-y-1">
-          <div className="px-4 py-2 text-[10px] font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest">Dashboards</div>
+          <div className="px-4 py-2 text-[10px] font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest">{isDepartmentMode ? "Regions" : "Dashboards"}</div>
           {navigation.map((item) => (
             <button
               key={item.id}
@@ -1185,7 +1435,7 @@ export default function App() {
               <div className="hidden lg:flex items-center gap-4">
                 <div className="flex flex-col items-end">
                   <span className="text-sm font-semibold text-slate-900 dark:text-white">{currentUser.displayName}</span>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">{currentUser.role === "admin" ? "Admin" : "Viewer"} &middot; {currentEntity}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">{currentUser.role === "admin" ? "Admin" : "Viewer"} &middot; {isDepartmentMode ? `${deptName} / ${regionDisplayName(currentEntity)}` : currentEntity}</span>
                 </div>
               </div>
               <button
@@ -1246,7 +1496,7 @@ export default function App() {
                 ))}
               </select>
             </div>
-            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{currentEntity}</span>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{isDepartmentMode ? regionDisplayName(currentEntity) : currentEntity}</span>
           </div>
         </header>
 
@@ -1263,10 +1513,12 @@ export default function App() {
                 >
                   <div className="flex items-center gap-3 mb-1">
                     <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold uppercase rounded tracking-wider">
-                      {currentEntity === EXECUTIVE_ENTITY ? "Consolidated" : "Single Entity"}
+                      {isDepartmentMode ? deptName : (currentEntity === EXECUTIVE_ENTITY ? "Consolidated" : "Single Entity")}
                     </span>
                     <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-                      {currentEntity === EXECUTIVE_ENTITY ? "Executive Treasury Overview" : `${currentEntity} Liquidity Dashboard`}
+                      {isDepartmentMode
+                        ? `${regionDisplayName(currentEntity)} Liquidity Dashboard`
+                        : (currentEntity === EXECUTIVE_ENTITY ? "Executive Treasury Overview" : `${currentEntity} Liquidity Dashboard`)}
                     </h1>
                   </div>
                 </motion.div>
@@ -1330,11 +1582,11 @@ export default function App() {
                   </MaximizeWrapper>
                 </div>
 
-                {currentEntity !== "Executive" && (
+                {(isDepartmentMode || currentEntity !== "Executive") && (
                   <div className="mt-8">
                     <MaximizeWrapper title="Disbursement Adjustments">
                       <DisbursementEstimates
-                        title={`${currentEntity} Adjustments`}
+                        title={`${isDepartmentMode ? regionDisplayName(currentEntity) : currentEntity} Adjustments`}
                         categories={entityEstimates[currentEntity]}
                         onCategoriesChange={(cats) => handleEstimateChange(currentEntity, cats)}
                         currency={currency}
@@ -1393,6 +1645,11 @@ export default function App() {
                 onUpdateUser={handleUpdateUser}
                 onDeleteUser={handleDeleteUser}
                 onLogout={handleLogout}
+                departments={departments}
+                onCreateDepartment={handleCreateDepartment}
+                onDeleteDepartment={handleDeleteDepartment}
+                isDepartmentMode={isDepartmentMode}
+                regionDisplayName={regionDisplayName}
               />
             )}
           </div>
