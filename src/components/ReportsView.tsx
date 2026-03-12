@@ -225,18 +225,18 @@ function ReportContent({
               </div>
               <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                 <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Treasury Health Status</p>
-                <div className="flex items-center gap-3 mt-1">
+                <div className="flex items-center gap-3 mt-1 min-w-0">
                   {metrics?.isHealthy ? (
-                    <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+                    <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center flex-shrink-0">
                       <CheckCircle2 className="w-5 h-5 text-white" />
                     </div>
                   ) : (
-                    <div className="w-8 h-8 bg-rose-500 rounded-lg flex items-center justify-center">
+                    <div className="w-8 h-8 bg-rose-500 rounded-lg flex items-center justify-center flex-shrink-0">
                       <AlertCircle className="w-5 h-5 text-white" />
                     </div>
                   )}
                   <span className={clsx(
-                    "text-lg font-black uppercase tracking-tighter",
+                    "text-sm sm:text-lg font-black uppercase tracking-tighter truncate",
                     metrics?.isHealthy ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                   )}>
                     {metrics?.isHealthy ? "Optimal" : "Action Required"}
@@ -281,7 +281,7 @@ function ReportContent({
               const minEntry = chartData.reduce((min: any, d: any) => (d.endingBalance < (min?.endingBalance ?? Infinity) ? d : min), chartData[0]);
               const hasNegative = chartData.some((d: any) => d.endingBalance < 0);
               return (
-            <div className="h-72 w-full mt-4 mb-12">
+            <div className="h-72 w-full mt-4 mb-12" data-print-chart>
               <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-widest text-[10px] mb-4">Liquidity Trend (30-Day Business Forecast)</h4>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData} margin={{ top: 10, right: 12, left: 8, bottom: 0 }}>
@@ -791,9 +791,25 @@ export default function ReportsView({
     cloned.removeAttribute('id'); // avoid duplicate IDs
 
     // Force all nested elements to be fully visible (no scroll clipping)
+    // BUT preserve explicit dimensions on chart containers and SVGs
+    const chartTags = new Set(['svg', 'path', 'line', 'rect', 'circle', 'g', 'defs', 'lineargradient', 'stop']);
     const allElements = cloned.querySelectorAll('*');
     allElements.forEach(el => {
       const htmlEl = el as HTMLElement;
+      const tag = htmlEl.tagName.toLowerCase();
+
+      // Skip SVG internals and Recharts containers — they need fixed dimensions to render lines
+      if (chartTags.has(tag)) return;
+      const isChartContainer = htmlEl.hasAttribute('data-print-chart') ||
+        htmlEl.classList.contains('recharts-responsive-container') ||
+        htmlEl.classList.contains('recharts-wrapper') ||
+        htmlEl.querySelector(':scope > .recharts-responsive-container') !== null ||
+        htmlEl.querySelector(':scope > svg.recharts-surface') !== null;
+      if (isChartContainer) {
+        htmlEl.style.boxShadow = 'none';
+        return;
+      }
+
       htmlEl.style.overflow = 'visible';
       htmlEl.style.maxHeight = 'none';
       htmlEl.style.height = 'auto';
@@ -830,11 +846,22 @@ export default function ReportsView({
       s.breakInside = '';
     });
 
-    // Also strip report-section class from ALL elements so the print CSS
-    // rule (.report-section { break-inside:avoid-page; margin-bottom:2cm })
-    // doesn't interfere at all
+    // Apply break-inside:avoid to report sections so cards/charts
+    // don't get split across page boundaries. Also set a reasonable
+    // margin-bottom so sections space out nicely across pages.
     cloned.querySelectorAll('.report-section').forEach(el => {
-      el.classList.remove('report-section');
+      const s = (el as HTMLElement).style;
+      s.breakInside = 'avoid';
+      s.pageBreakInside = 'avoid';
+      s.marginBottom = '1cm';
+    });
+
+    // Keep section headers (roman numeral headings with the thick border)
+    // glued to the content that follows — never orphan at page bottom.
+    cloned.querySelectorAll('.border-b-2').forEach(el => {
+      const s = (el as HTMLElement).style;
+      s.breakAfter = 'avoid';
+      s.pageBreakAfter = 'avoid';
     });
 
     const coverPage = cloned.querySelector('.cover-page') as HTMLElement | null;
@@ -861,11 +888,13 @@ export default function ReportsView({
 
     // Fix data spill in card bubbles: mark card containers so print CSS
     // keeps overflow:hidden on them, and auto-shrink text that's too wide.
-    // Target the grid cells (rounded-2xl cards) inside the report.
+    // Also prevent cards from splitting across pages.
     cloned.querySelectorAll('.rounded-2xl').forEach(card => {
       const htmlCard = card as HTMLElement;
       htmlCard.setAttribute('data-print-clip', '');
       htmlCard.style.overflow = 'hidden';
+      htmlCard.style.breakInside = 'avoid';
+      htmlCard.style.pageBreakInside = 'avoid';
 
       // Find large currency value elements inside the card and ensure they fit
       card.querySelectorAll('p, span').forEach(el => {
