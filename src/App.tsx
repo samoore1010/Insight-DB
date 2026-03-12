@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { parse, differenceInDays, format, startOfToday, addDays, isWeekend, isBefore } from "date-fns";
-import { DailyData, DashboardStats, Entity, DisbursementItem, EstimateCategory, Report } from "./types";
+import { DailyData, DashboardStats, Entity, DisbursementItem, EstimateCategory, Report, EXECUTIVE_ENTITY, DEFAULT_REGIONS } from "./types";
 import { parseLiquidityData, calculateStats } from "./data/parser";
 import SummaryCards from "./components/SummaryCards";
 import LiquidityChart from "./components/LiquidityChart";
@@ -38,51 +38,55 @@ const isBusinessDay = (date: Date) => {
 
 export default function App() {
   const [multiEntityData, setMultiEntityData] = useState<Record<Entity, DailyData[]> | null>(null);
-  const [currentEntity, setCurrentEntity] = useState<Entity>("Executive");
+  const [currentEntity, setCurrentEntity] = useState<Entity>(EXECUTIVE_ENTITY);
   const [activeView, setActiveView] = useState<"dashboard" | "reports" | "settings" | "history">("dashboard");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [forecastDays, setForecastDays] = useState(14);
+  const [regions, setRegions] = useState<string[]>(() => {
+    const saved = localStorage.getItem('regions');
+    return saved ? JSON.parse(saved) : DEFAULT_REGIONS;
+  });
   const [isSimulationMode, setIsSimulationMode] = useState(false);
-  const [simulationOverrides, setSimulationOverrides] = useState<Record<Exclude<Entity, "Executive">, Record<string, Partial<DailyData>>>>({
-    "Flint": {},
-    "ISH": {},
-    "Coldwater": {},
-    "Chicago": {},
+
+  // Helper to build region-keyed empty records
+  const emptyRegionRecord = <T,>(factory: () => T): Record<string, T> => {
+    const rec: Record<string, T> = {};
+    regions.forEach(r => { rec[r] = factory(); });
+    return rec;
+  };
+
+  const [simulationOverrides, setSimulationOverrides] = useState<Record<string, Record<string, Partial<DailyData>>>>(() => {
+    const rec: Record<string, Record<string, Partial<DailyData>>> = {};
+    DEFAULT_REGIONS.forEach(r => { rec[r] = {}; });
+    return rec;
   });
   
   const todayStr = format(startOfToday(), "yyyy-MM-dd");
 
-  const [entityEstimates, setEntityEstimates] = useState<Record<Exclude<Entity, "Executive">, EstimateCategory[]>>({
-    "Flint": [
-      { id: "flint-payroll", label: "Payroll", baseAmount: 0, adjustment: 0, period: "Bi-Weekly", startDate: todayStr },
-      { id: "flint-ops", label: "General AP Payments", baseAmount: 0, adjustment: 0, period: "Daily", startDate: todayStr }
-    ],
-    "ISH": [
-      { id: "ish-payroll", label: "Payroll", baseAmount: 0, adjustment: 0, period: "Bi-Weekly", startDate: todayStr },
-      { id: "ish-ops", label: "General AP Payments", baseAmount: 0, adjustment: 0, period: "Daily", startDate: todayStr }
-    ],
-    "Coldwater": [
-      { id: "cw-payroll", label: "Payroll", baseAmount: 0, adjustment: 0, period: "Bi-Weekly", startDate: format(addDays(startOfToday(), 7), "yyyy-MM-dd") },
-      { id: "cw-ops", label: "General AP Payments", baseAmount: 0, adjustment: 0, period: "Daily", startDate: todayStr }
-    ],
-    "Chicago": [
-      { id: "chi-payroll", label: "Payroll", baseAmount: 0, adjustment: 0, period: "Bi-Weekly", startDate: todayStr },
-      { id: "chi-ops", label: "General AP Payments", baseAmount: 0, adjustment: 0, period: "Daily", startDate: todayStr }
-    ],
+  const makeDefaultEstimates = (region: string): EstimateCategory[] => {
+    const prefix = region.toLowerCase().replace(/\s+/g, '-').substring(0, 3);
+    return [
+      { id: `${prefix}-payroll`, label: "Payroll", baseAmount: 0, adjustment: 0, period: "Bi-Weekly", startDate: todayStr },
+      { id: `${prefix}-ops`, label: "General AP Payments", baseAmount: 0, adjustment: 0, period: "Daily", startDate: todayStr }
+    ];
+  };
+
+  const [entityEstimates, setEntityEstimates] = useState<Record<string, EstimateCategory[]>>(() => {
+    const rec: Record<string, EstimateCategory[]> = {};
+    DEFAULT_REGIONS.forEach(r => { rec[r] = makeDefaultEstimates(r); });
+    return rec;
   });
 
-  const [manualOverrides, setManualOverrides] = useState<Record<Exclude<Entity, "Executive">, Record<string, Partial<DailyData>>>>({
-    "Flint": {},
-    "ISH": {},
-    "Coldwater": {},
-    "Chicago": {},
+  const [manualOverrides, setManualOverrides] = useState<Record<string, Record<string, Partial<DailyData>>>>(() => {
+    const rec: Record<string, Record<string, Partial<DailyData>>> = {};
+    DEFAULT_REGIONS.forEach(r => { rec[r] = {}; });
+    return rec;
   });
 
-  const [manualBalances, setManualBalances] = useState<Record<Exclude<Entity, "Executive">, Record<string, number>>>({
-    "Flint": { flint: 0 },
-    "ISH": { ish: 0 },
-    "Coldwater": { main: 0 },
-    "Chicago": { main: 0 },
+  const [manualBalances, setManualBalances] = useState<Record<string, Record<string, number>>>(() => {
+    const rec: Record<string, Record<string, number>> = {};
+    DEFAULT_REGIONS.forEach(r => { rec[r] = { main: 0 }; });
+    return rec;
   });
   const [reports, setReports] = useState<Report[]>([]);
 
@@ -216,7 +220,10 @@ export default function App() {
       } catch (error) {
         console.error("Failed to load data:", error);
       } finally {
-        const parsed = parseLiquidityData();
+        const savedRegions = localStorage.getItem('regions');
+        const loadedRegions: string[] = savedRegions ? JSON.parse(savedRegions) : DEFAULT_REGIONS;
+        setRegions(loadedRegions);
+        const parsed = parseLiquidityData(loadedRegions);
         setMultiEntityData(parsed);
         setIsLoaded(true);
       }
@@ -227,27 +234,24 @@ export default function App() {
   // Granular sync: save per-region changes to normalized tables + keep blob in sync
   useEffect(() => {
     if (!isLoaded) return;
-    const regions: Exclude<Entity, "Executive">[] = ["Flint", "ISH", "Coldwater", "Chicago"];
     for (const region of regions) {
-      syncEstimates(region, entityEstimates[region]).catch(err => console.error("Failed to sync estimates:", err));
+      if (entityEstimates[region]) syncEstimates(region, entityEstimates[region]).catch(err => console.error("Failed to sync estimates:", err));
     }
-  }, [entityEstimates, isLoaded]);
+  }, [entityEstimates, isLoaded, regions]);
 
   useEffect(() => {
     if (!isLoaded) return;
-    const regions: Exclude<Entity, "Executive">[] = ["Flint", "ISH", "Coldwater", "Chicago"];
     for (const region of regions) {
-      syncDisbursements(region, manualOverrides[region]).catch(err => console.error("Failed to sync overrides:", err));
+      if (manualOverrides[region]) syncDisbursements(region, manualOverrides[region]).catch(err => console.error("Failed to sync overrides:", err));
     }
-  }, [manualOverrides, isLoaded]);
+  }, [manualOverrides, isLoaded, regions]);
 
   useEffect(() => {
     if (!isLoaded) return;
-    const regions: Exclude<Entity, "Executive">[] = ["Flint", "ISH", "Coldwater", "Chicago"];
     for (const region of regions) {
-      syncBalances(region, manualBalances[region]).catch(err => console.error("Failed to sync balances:", err));
+      if (manualBalances[region]) syncBalances(region, manualBalances[region]).catch(err => console.error("Failed to sync balances:", err));
     }
-  }, [manualBalances, isLoaded]);
+  }, [manualBalances, isLoaded, regions]);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -259,14 +263,9 @@ export default function App() {
   }, [reports, isLoaded]);
 
   const reportData = useMemo(() => {
-    const projectionOverrides: Record<Exclude<Entity, "Executive">, Record<string, Partial<DailyData>>> = {
-      "Flint": {}, "ISH": {}, "Coldwater": {}, "Chicago": {},
-    };
-    const actualsOverrides: Record<Exclude<Entity, "Executive">, Record<string, { actualCashIn?: number, actualCashOut?: number }>> = {
-      "Flint": {}, "ISH": {}, "Coldwater": {}, "Chicago": {},
-    };
-
-    const regions: Exclude<Entity, "Executive">[] = ["Flint", "ISH", "Coldwater", "Chicago"];
+    const projectionOverrides: Record<string, Record<string, Partial<DailyData>>> = {};
+    const actualsOverrides: Record<string, Record<string, { actualCashIn?: number, actualCashOut?: number }>> = {};
+    regions.forEach(r => { projectionOverrides[r] = {}; actualsOverrides[r] = {}; });
 
     regions.forEach(region => {
       // Projections: Only the most recent report
@@ -314,13 +313,13 @@ export default function App() {
     });
 
     return { projectionOverrides, actualsOverrides };
-  }, [reports]);
+  }, [reports, regions]);
 
   const adjustData = (
     rawData: DailyData[], 
     estimates: EstimateCategory[], 
     overrides: Record<string, Partial<DailyData>> = {},
-    region: Exclude<Entity, "Executive">,
+    region: string,
     initialBalanceOverride?: number,
     simOverrides: Record<string, Partial<DailyData>> = {},
     reportProjectionOverride: Record<string, Partial<DailyData>> = {},
@@ -462,10 +461,7 @@ export default function App() {
         apPayments,
         otherDisbursements: adjCashOut - payroll - benefits - apPayments,
         grants,
-        receiptsFlint: region === "Flint" ? regionalReceipts : 0,
-        receiptsISH: region === "ISH" ? regionalReceipts : 0,
-        receiptsColdwater: region === "Coldwater" ? regionalReceipts : 0,
-        receiptsChicago: region === "Chicago" ? regionalReceipts : 0,
+        regionalReceipts: Object.fromEntries(regions.map(r => [r, r === region ? regionalReceipts : 0])),
         actualCashIn,
         actualCashOut,
         isSimulated: Object.keys(simOverride).length > 0
@@ -478,51 +474,74 @@ export default function App() {
 
     const getSum = (obj: Record<string, number>) => Object.values(obj).reduce((a, b) => a + b, 0);
 
-    const flintAdj = adjustData(multiEntityData["Flint"], entityEstimates["Flint"], manualOverrides["Flint"], "Flint", getSum(manualBalances["Flint"]), simulationOverrides["Flint"], reportData.projectionOverrides["Flint"], reportData.actualsOverrides["Flint"]);
-    const ishAdj = adjustData(multiEntityData["ISH"], entityEstimates["ISH"], manualOverrides["ISH"], "ISH", getSum(manualBalances["ISH"]), simulationOverrides["ISH"], reportData.projectionOverrides["ISH"], reportData.actualsOverrides["ISH"]);
-    const cwAdj = adjustData(multiEntityData["Coldwater"], entityEstimates["Coldwater"], manualOverrides["Coldwater"], "Coldwater", getSum(manualBalances["Coldwater"]), simulationOverrides["Coldwater"], reportData.projectionOverrides["Coldwater"], reportData.actualsOverrides["Coldwater"]);
-    const chAdj = adjustData(multiEntityData["Chicago"], entityEstimates["Chicago"], manualOverrides["Chicago"], "Chicago", getSum(manualBalances["Chicago"]), simulationOverrides["Chicago"], reportData.projectionOverrides["Chicago"], reportData.actualsOverrides["Chicago"]);
+    // Adjust data for each region dynamically
+    const regionAdjusted: Record<string, DailyData[]> = {};
+    regions.forEach(region => {
+      if (multiEntityData[region]) {
+        regionAdjusted[region] = adjustData(
+          multiEntityData[region],
+          entityEstimates[region] || [],
+          manualOverrides[region] || {},
+          region,
+          getSum(manualBalances[region] || {}),
+          simulationOverrides[region] || {},
+          reportData.projectionOverrides[region] || {},
+          reportData.actualsOverrides[region] || {}
+        );
+      }
+    });
 
-    const execAdj: DailyData[] = flintAdj.map((f, i) => {
-      const ish = ishAdj[i];
-      const cw = cwAdj[i];
-      const ch = chAdj[i];
-      
-      // Consolidate disbursements for executive view
-      const consolidatedDisbursements: DisbursementItem[] = [
-        ...f.disbursements.map(d => ({ ...d, label: `Flint: ${d.label}` })),
-        ...ish.disbursements.map(d => ({ ...d, label: `ISH: ${d.label}` })),
-        ...cw.disbursements.map(d => ({ ...d, label: `CW: ${d.label}` })),
-        ...ch.disbursements.map(d => ({ ...d, label: `Chi: ${d.label}` }))
-      ];
+    // Build Executive consolidated view
+    const firstRegion = regions[0];
+    const firstData = regionAdjusted[firstRegion];
+    if (!firstData) return null;
+
+    const execAdj: DailyData[] = firstData.map((_, i) => {
+      const consolidatedDisbursements: DisbursementItem[] = [];
+      const consolidatedReceipts: Record<string, number> = {};
+
+      let cashIn = 0, cashOut = 0, netFlow = 0, endingBalance = 0;
+      let payroll = 0, apPayments = 0, benefits = 0, otherDisbursements = 0, grants = 0;
+
+      regions.forEach(region => {
+        const rd = regionAdjusted[region]?.[i];
+        if (!rd) return;
+        cashIn += rd.cashIn;
+        cashOut += rd.cashOut;
+        netFlow += rd.netFlow;
+        endingBalance += rd.endingBalance;
+        payroll += rd.payroll;
+        apPayments += rd.apPayments;
+        benefits += rd.benefits;
+        otherDisbursements += rd.otherDisbursements;
+        grants += rd.grants;
+        consolidatedReceipts[region] = rd.regionalReceipts[region] || 0;
+        consolidatedDisbursements.push(
+          ...rd.disbursements.map(d => ({ ...d, label: `${region}: ${d.label}` }))
+        );
+      });
 
       return {
-        date: f.date,
-        cashIn: f.cashIn + ish.cashIn + cw.cashIn + ch.cashIn,
-        cashOut: f.cashOut + ish.cashOut + cw.cashOut + ch.cashOut,
-        netFlow: f.netFlow + ish.netFlow + cw.netFlow + ch.netFlow,
-        endingBalance: f.endingBalance + ish.endingBalance + cw.endingBalance + ch.endingBalance,
-        payroll: f.payroll + ish.payroll + cw.payroll + ch.payroll,
-        apPayments: f.apPayments + ish.apPayments + cw.apPayments + ch.apPayments,
-        benefits: f.benefits + ish.benefits + cw.benefits + ch.benefits,
-        otherDisbursements: f.otherDisbursements + ish.otherDisbursements + cw.otherDisbursements + ch.otherDisbursements,
-        receiptsFlint: f.receiptsFlint,
-        receiptsISH: ish.receiptsISH,
-        receiptsColdwater: cw.receiptsColdwater,
-        receiptsChicago: ch.receiptsChicago,
-        grants: f.grants + ish.grants + cw.grants + ch.grants,
+        date: firstData[i].date,
+        cashIn,
+        cashOut,
+        netFlow,
+        endingBalance,
+        payroll,
+        apPayments,
+        benefits,
+        otherDisbursements,
+        regionalReceipts: consolidatedReceipts,
+        grants,
         disbursements: consolidatedDisbursements
       };
     });
 
     return {
-      "Flint": flintAdj,
-      "ISH": ishAdj,
-      "Coldwater": cwAdj,
-      "Chicago": chAdj,
-      "Executive": execAdj
+      ...regionAdjusted,
+      [EXECUTIVE_ENTITY]: execAdj
     };
-  }, [multiEntityData, entityEstimates, manualOverrides, manualBalances, simulationOverrides, reportData]);
+  }, [multiEntityData, entityEstimates, manualOverrides, manualBalances, simulationOverrides, reportData, regions]);
 
   const currentData = useMemo(() => {
     if (!allAdjustedData) return [];
@@ -533,20 +552,20 @@ export default function App() {
     if (currentData.length === 0) return null;
     const baseStats = calculateStats(currentData);
     
-    if (currentEntity === "Executive" && allAdjustedData) {
+    if (currentEntity === EXECUTIVE_ENTITY && allAdjustedData) {
       const regionalNegatives: any[] = [];
       const regionalBurnRates: any[] = [];
 
-      (["Flint", "ISH", "Coldwater", "Chicago"] as const).forEach(region => {
+      regions.forEach(region => {
         const regionData = allAdjustedData[region];
+        if (!regionData) return;
         const regionStats = calculateStats(regionData);
-        
-        // Calculate Burn Rates (last 30 days of projections)
+
         const next30 = regionData.slice(0, 30);
         const totalOut = next30.reduce((acc, d) => acc + d.cashOut, 0);
         const dailyBurn = totalOut / 30;
         const weeklyBurn = dailyBurn * 7;
-        
+
         regionalBurnRates.push({
           region,
           dailyBurn,
@@ -563,10 +582,10 @@ export default function App() {
       });
       baseStats.regionalNegativeTransactions = regionalNegatives;
       baseStats.regionalBurnRates = regionalBurnRates;
-      
-      baseStats.regionalLiquidityBreakdown = (["Flint", "ISH", "Coldwater", "Chicago"] as const).map(region => ({
+
+      baseStats.regionalLiquidityBreakdown = regions.map(region => ({
         region,
-        value: allAdjustedData[region][0]?.endingBalance || 0
+        value: allAdjustedData[region]?.[0]?.endingBalance || 0
       }));
     }
     
@@ -574,14 +593,11 @@ export default function App() {
   }, [currentData, currentEntity, allAdjustedData]);
 
   const navigation = [
-    { id: "Executive", label: "Executive View", icon: Earth },
-    { id: "Flint", label: "Flint", icon: Car },
-    { id: "ISH", label: "ISH", icon: Building },
-    { id: "Coldwater", label: "Coldwater", icon: Landmark },
-    { id: "Chicago", label: "Chicago", icon: Building2 },
+    { id: EXECUTIVE_ENTITY, label: "Executive View", icon: Earth },
+    ...regions.map(r => ({ id: r, label: r, icon: Building2 })),
   ];
 
-  const handleEstimateChange = (entity: Exclude<Entity, "Executive">, newCategories: EstimateCategory[]) => {
+  const handleEstimateChange = (entity: string, newCategories: EstimateCategory[]) => {
     setEntityEstimates(prev => ({
       ...prev,
       [entity]: newCategories
@@ -590,7 +606,7 @@ export default function App() {
     // Clear estimate-type overrides to allow the new categories to take full effect
     // as requested: "It needs to override all previous estimates"
     setManualOverrides(prev => {
-      const region = entity as Exclude<Entity, "Executive">;
+      const region = entity;
       const regionOverrides = prev[region];
       if (!regionOverrides) return prev;
 
@@ -626,16 +642,16 @@ export default function App() {
   };
 
   const handleUpdateDay = (date: string, updates: Partial<DailyData>) => {
-    if (currentEntity === "Executive") return; // Cannot edit consolidated directly
+    if (currentEntity === EXECUTIVE_ENTITY) return; // Cannot edit consolidated directly
     
     const targetSetter = isSimulationMode ? setSimulationOverrides : setManualOverrides;
 
     targetSetter(prev => ({
       ...prev,
       [currentEntity]: {
-        ...prev[currentEntity as Exclude<Entity, "Executive">],
+        ...prev[currentEntity],
         [date]: {
-          ...prev[currentEntity as Exclude<Entity, "Executive">][date],
+          ...prev[currentEntity][date],
           ...updates
         }
       }
@@ -643,25 +659,22 @@ export default function App() {
   };
 
   const handleUpdateBalance = (key: string, balance: number) => {
-    if (currentEntity === "Executive") return;
+    if (currentEntity === EXECUTIVE_ENTITY) return;
     setManualBalances(prev => ({
       ...prev,
       [currentEntity]: {
-        ...prev[currentEntity as Exclude<Entity, "Executive">],
+        ...prev[currentEntity],
         [key]: balance
       }
     }));
   };
 
-  const handleInternalTransfer = (fromEntity: Exclude<Entity, "Executive">, toEntity: Exclude<Entity, "Executive">, amount: number) => {
+  const handleInternalTransfer = (fromEntity: string, toEntity: string, amount: number) => {
     setManualBalances(prev => {
-      const newBalances = { ...prev };
-      
-      // Helper to get the primary account key for a region
-      const getAccountKey = (entity: Exclude<Entity, "Executive">) => {
-        if (entity === "Flint") return "flint";
-        if (entity === "ISH") return "ish";
-        return "main";
+      // Use the first key in the region's balance record as the primary account
+      const getAccountKey = (entity: string) => {
+        const keys = Object.keys(prev[entity] || {});
+        return keys[0] || "main";
       };
 
       const fromKey = getAccountKey(fromEntity);
@@ -671,11 +684,11 @@ export default function App() {
         ...prev,
         [fromEntity]: {
           ...prev[fromEntity],
-          [fromKey]: (prev[fromEntity][fromKey] || 0) - amount
+          [fromKey]: ((prev[fromEntity] || {})[fromKey] || 0) - amount
         },
         [toEntity]: {
           ...prev[toEntity],
-          [toKey]: (prev[toEntity][toKey] || 0) + amount
+          [toKey]: ((prev[toEntity] || {})[toKey] || 0) + amount
         }
       };
     });
@@ -698,12 +711,12 @@ export default function App() {
         if (fromDate === toDate) return;
 
         // 1. Find the region and the original item
-        let region: Exclude<Entity, "Executive"> | undefined;
+        let region: string | undefined;
         let itemToMove: DisbursementItem | undefined;
         let fromDayData: DailyData | undefined;
 
-        if (currentEntity === "Executive") {
-          for (const r of ["Flint", "ISH", "Coldwater", "Chicago"] as const) {
+        if (currentEntity === EXECUTIVE_ENTITY) {
+          for (const r of regions) {
             const day = allAdjustedData[r].find(d => d.date === fromDate);
             if (day) {
               const item = day.disbursements.find(i => i.id === itemId);
@@ -716,7 +729,7 @@ export default function App() {
             }
           }
         } else {
-          region = currentEntity as Exclude<Entity, "Executive">;
+          region = currentEntity;
           fromDayData = allAdjustedData[region].find(d => d.date === fromDate);
           if (fromDayData) {
             itemToMove = fromDayData.disbursements.find(i => i.id === itemId);
@@ -781,6 +794,44 @@ export default function App() {
     });
   };
 
+
+  const handleAddRegion = (name: string) => {
+    if (!name.trim() || regions.includes(name) || name === EXECUTIVE_ENTITY) return;
+    const newRegions = [...regions, name];
+    setRegions(newRegions);
+    localStorage.setItem('regions', JSON.stringify(newRegions));
+
+    // Initialize state for the new region
+    setEntityEstimates(prev => ({ ...prev, [name]: makeDefaultEstimates(name) }));
+    setManualOverrides(prev => ({ ...prev, [name]: {} }));
+    setManualBalances(prev => ({ ...prev, [name]: { main: 0 } }));
+    setSimulationOverrides(prev => ({ ...prev, [name]: {} }));
+
+    // Regenerate parser data with new regions
+    const parsed = parseLiquidityData(newRegions);
+    setMultiEntityData(parsed);
+  };
+
+  const handleDeleteRegion = (name: string) => {
+    if (name === EXECUTIVE_ENTITY || !regions.includes(name)) return;
+    const newRegions = regions.filter(r => r !== name);
+    if (newRegions.length === 0) return; // Must have at least one region
+    setRegions(newRegions);
+    localStorage.setItem('regions', JSON.stringify(newRegions));
+
+    // Clean up state for the removed region
+    setEntityEstimates(prev => { const { [name]: _, ...rest } = prev; return rest; });
+    setManualOverrides(prev => { const { [name]: _, ...rest } = prev; return rest; });
+    setManualBalances(prev => { const { [name]: _, ...rest } = prev; return rest; });
+    setSimulationOverrides(prev => { const { [name]: _, ...rest } = prev; return rest; });
+
+    // If currently viewing the deleted region, switch to Executive
+    if (currentEntity === name) setCurrentEntity(EXECUTIVE_ENTITY);
+
+    // Regenerate parser data without the removed region
+    const parsed = parseLiquidityData(newRegions);
+    setMultiEntityData(parsed);
+  };
 
   if (!stats || !allAdjustedData) return null;
 
@@ -1091,24 +1142,25 @@ export default function App() {
                 >
                   <div className="flex items-center gap-3 mb-1">
                     <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold uppercase rounded tracking-wider">
-                      {currentEntity === "Executive" ? "Consolidated" : "Single Entity"}
+                      {currentEntity === EXECUTIVE_ENTITY ? "Consolidated" : "Single Entity"}
                     </span>
                     <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-                      {currentEntity === "Executive" ? "Executive Treasury Overview" : `${currentEntity} Liquidity Dashboard`}
+                      {currentEntity === EXECUTIVE_ENTITY ? "Executive Treasury Overview" : `${currentEntity} Liquidity Dashboard`}
                     </h1>
                   </div>
                 </motion.div>
 
                 <MaximizeWrapper title="Pillar 1 & 3: Executive Core & Regional Burn">
-                  <SummaryCards 
-                    stats={stats} 
+                  <SummaryCards
+                    stats={stats}
                     currentEntity={currentEntity}
                     onUpdateBalance={handleUpdateBalance}
                     onInternalTransfer={handleInternalTransfer}
                     todaysCashOut={currentData[0]?.cashOut || 0}
                     manualBalances={manualBalances}
-                    balances={manualBalances[currentEntity as Exclude<Entity, "Executive">] || {}}
+                    balances={manualBalances[currentEntity] || {}}
                     currency={currency}
+                    regions={regions}
                   />
                 </MaximizeWrapper>
 
@@ -1125,14 +1177,15 @@ export default function App() {
 
                 <div className="mt-8">
                   <MaximizeWrapper title="Operational Cash Calendar">
-                    <CashCalendar 
-                      data={currentData} 
-                      onUpdateDay={handleUpdateDay} 
+                    <CashCalendar
+                      data={currentData}
+                      onUpdateDay={handleUpdateDay}
                       onMoveDisbursement={handleMoveDisbursement}
                       onMoveMultipleDisbursements={handleMoveMultipleDisbursements}
-                      isExecutive={currentEntity === "Executive"}
+                      isExecutive={currentEntity === EXECUTIVE_ENTITY}
                       currency={currency}
                       dateFormat={dateFormat}
+                      regions={regions}
                     />
                   </MaximizeWrapper>
                 </div>
@@ -1159,8 +1212,8 @@ export default function App() {
                     <MaximizeWrapper title="Disbursement Adjustments">
                       <DisbursementEstimates 
                         title={`${currentEntity} Adjustments`}
-                        categories={entityEstimates[currentEntity as Exclude<Entity, "Executive">]} 
-                        onCategoriesChange={(cats) => handleEstimateChange(currentEntity as Exclude<Entity, "Executive">, cats)} 
+                        categories={entityEstimates[currentEntity]} 
+                        onCategoriesChange={(cats) => handleEstimateChange(currentEntity, cats)} 
                         currency={currency}
                       />
                     </MaximizeWrapper>
@@ -1169,7 +1222,7 @@ export default function App() {
               </div>
             ) : activeView === "reports" ? (
               <ReportsView 
-                regions={["Executive", "Flint", "ISH", "Coldwater", "Chicago"]} 
+                regions={[EXECUTIVE_ENTITY, ...regions]}
                 allData={allAdjustedData}
                 reports={reports}
                 onReportsChange={setReports}
@@ -1180,6 +1233,7 @@ export default function App() {
             ) : activeView === "history" ? (
               <ChangeHistory
                 currentEntity={currentEntity}
+                regions={regions}
                 onDataReverted={async () => {
                   // Reload all data from server after a revert
                   try {
@@ -1205,6 +1259,9 @@ export default function App() {
                 onCompanyLogoChange={handleCompanyLogoChange}
                 onExportData={handleExportData}
                 onResetData={handleResetData}
+                regions={regions}
+                onAddRegion={handleAddRegion}
+                onDeleteRegion={handleDeleteRegion}
               />
             )}
           </div>

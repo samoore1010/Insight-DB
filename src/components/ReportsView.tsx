@@ -102,6 +102,8 @@ function ReportContent({
   const isComprehensive = reportType === "comprehensive";
   const showSummary = isComprehensive;
 
+  const entityRegions = allData ? Object.keys(allData).filter((k: string) => k !== "Executive") : [];
+
   const formatCurrency = (val: number, compact = false) => centralizedFormatCurrency(val, currency, compact);
   const formatDate = (date: string | Date) => centralizedFormatDate(date, dateFormat);
 
@@ -547,7 +549,7 @@ function ReportContent({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                    {["Flint", "ISH", "Coldwater", "Chicago"].map((region) => {
+                    {entityRegions.map((region) => {
                       const data = allData?.[region as Entity] || [];
                       const balance = data[0]?.endingBalance || 0;
                       const flow7 = data.slice(0, 7).reduce((acc: number, d: any) => acc + d.netFlow, 0);
@@ -570,21 +572,21 @@ function ReportContent({
                     <tr className="text-sm border-t-2 border-slate-900 dark:border-white bg-slate-50/50 dark:bg-slate-800/30">
                       <td className="py-4 font-black text-slate-900 dark:text-white uppercase tracking-tight">Total Consolidated</td>
                       <td className="py-4 text-right font-mono font-black text-slate-900 dark:text-white">
-                        {formatCurrency(["Flint", "ISH", "Coldwater", "Chicago"].reduce((sum, r) => sum + (allData?.[r as Entity]?.[0]?.endingBalance || 0), 0))}
+                        {formatCurrency(entityRegions.reduce((sum, r) => sum + (allData?.[r as Entity]?.[0]?.endingBalance || 0), 0))}
                       </td>
                       <td className={clsx(
                         "py-4 text-right font-mono font-black",
-                        ["Flint", "ISH", "Coldwater", "Chicago"].reduce((sum, r) => sum + (allData?.[r as Entity]?.slice(0, 7).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                        entityRegions.reduce((sum, r) => sum + (allData?.[r as Entity]?.slice(0, 7).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                       )}>
-                        {["Flint", "ISH", "Coldwater", "Chicago"].reduce((sum, r) => sum + (allData?.[r as Entity]?.slice(0, 7).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0) >= 0 ? "+" : ""}
-                        {formatCurrency(["Flint", "ISH", "Coldwater", "Chicago"].reduce((sum, r) => sum + (allData?.[r as Entity]?.slice(0, 7).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0))}
+                        {entityRegions.reduce((sum, r) => sum + (allData?.[r as Entity]?.slice(0, 7).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0) >= 0 ? "+" : ""}
+                        {formatCurrency(entityRegions.reduce((sum, r) => sum + (allData?.[r as Entity]?.slice(0, 7).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0))}
                       </td>
                       <td className={clsx(
                         "py-4 text-right font-mono font-black",
-                        ["Flint", "ISH", "Coldwater", "Chicago"].reduce((sum, r) => sum + (allData?.[r as Entity]?.slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                        entityRegions.reduce((sum, r) => sum + (allData?.[r as Entity]?.slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                       )}>
-                        {["Flint", "ISH", "Coldwater", "Chicago"].reduce((sum, r) => sum + (allData?.[r as Entity]?.slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0) >= 0 ? "+" : ""}
-                        {formatCurrency(["Flint", "ISH", "Coldwater", "Chicago"].reduce((sum, r) => sum + (allData?.[r as Entity]?.slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0))}
+                        {entityRegions.reduce((sum, r) => sum + (allData?.[r as Entity]?.slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0) >= 0 ? "+" : ""}
+                        {formatCurrency(entityRegions.reduce((sum, r) => sum + (allData?.[r as Entity]?.slice(0, 14).reduce((acc: number, d: any) => acc + d.netFlow, 0) || 0), 0))}
                       </td>
                     </tr>
                   </tfoot>
@@ -608,7 +610,7 @@ function ReportContent({
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Liquidity Distribution</h4>
                 <div className="space-y-4">
                   {activeRegion === "Executive" ? (
-                    ["Flint", "ISH", "Coldwater", "Chicago"].map(region => {
+                    entityRegions.map(region => {
                       const total = allData?.Executive[0]?.endingBalance || 1;
                       const regionBal = allData?.[region as Entity][0]?.endingBalance || 0;
                       const pct = (regionBal / total) * 100;
@@ -647,7 +649,7 @@ function ReportContent({
               <div className="p-4 sm:p-6 border border-slate-200 rounded-2xl">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Risk Exposure (14-Day)</h4>
                 <div className="space-y-4">
-                  {(activeRegion === "Executive" ? ["Flint", "ISH", "Coldwater", "Chicago"] : [activeRegion]).map(region => {
+                  {(activeRegion === "Executive" ? entityRegions : [activeRegion]).map(region => {
                     const data = allData?.[region as Entity] || [];
                     const minBal = Math.min(...data.slice(0, 14).map(d => d.endingBalance));
                     const isAtRisk = minBal < 50000;
@@ -681,7 +683,7 @@ function ReportContent({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                    {(activeRegion === "Executive" ? ["Flint", "ISH", "Coldwater", "Chicago"] : [activeRegion]).map((region) => {
+                    {(activeRegion === "Executive" ? entityRegions : [activeRegion]).map((region) => {
                       const data = allData?.[region as Entity].slice(0, 14) || [];
                       const avgIn = data.reduce((acc: number, d: any) => acc + d.cashIn, 0) / 14;
                       const avgOut = data.reduce((acc: number, d: any) => acc + d.cashOut, 0) / 14;
@@ -764,6 +766,7 @@ export default function ReportsView({
   companyLogo = null,
   theme = 'light'
 }: Props) {
+  const entityRegions = regions.filter(r => r !== "Executive");
   const [activeRegion, setActiveRegion] = useState<Entity>(regions[0]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadType, setUploadType] = useState<"projection" | "ap" | "pr" | "revenue">("projection");
@@ -1110,7 +1113,7 @@ export default function ReportsView({
         const breakdown: { name: string, amount: number, isFunded: boolean }[] = [];
         
         if (activeRegion === "Executive") {
-          (["Flint", "ISH", "Coldwater", "Chicago"] as const).forEach(r => {
+          entityRegions.forEach(r => {
             const rDay = allData[r][i];
             if (rDay.payroll > 0) {
               breakdown.push({

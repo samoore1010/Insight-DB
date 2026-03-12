@@ -24,6 +24,7 @@ import { motion, AnimatePresence } from "motion/react";
 interface Props {
   currentEntity: Entity;
   onDataReverted: () => void;
+  regions?: string[];
 }
 
 const ACTION_CONFIG: Record<string, { icon: typeof Plus; color: string; bgColor: string }> = {
@@ -75,7 +76,7 @@ function groupByDate(entries: ChangelogEntry[]): { label: string; entries: Chang
   return Array.from(groups.entries()).map(([label, entries]) => ({ label, entries }));
 }
 
-export default function ChangeHistory({ currentEntity, onDataReverted }: Props) {
+export default function ChangeHistory({ currentEntity, onDataReverted, regions = [] }: Props) {
   const [entries, setEntries] = useState<ChangelogEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -181,10 +182,9 @@ export default function ChangeHistory({ currentEntity, onDataReverted }: Props) 
           className="px-3 py-1.5 text-xs font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
         >
           <option value="all">All Regions</option>
-          <option value="Flint">Flint</option>
-          <option value="ISH">ISH</option>
-          <option value="Coldwater">Coldwater</option>
-          <option value="Chicago">Chicago</option>
+          {regions.map(r => (
+            <option key={r} value={r}>{r}</option>
+          ))}
         </select>
         <select
           value={typeFilter}
@@ -259,10 +259,7 @@ export default function ChangeHistory({ currentEntity, onDataReverted }: Props) 
                       <div className="flex flex-wrap items-center gap-2 mt-1.5">
                         <span className={clsx(
                           "px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md",
-                          entry.region === "Flint" ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400" :
-                          entry.region === "ISH" ? "bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400" :
-                          entry.region === "Coldwater" ? "bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400" :
-                          "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400"
+                          "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
                         )}>
                           {entry.region}
                         </span>

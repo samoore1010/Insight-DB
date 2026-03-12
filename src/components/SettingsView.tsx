@@ -1,24 +1,23 @@
-import { useState, useEffect } from "react";
-import { 
-  Moon, 
-  Sun, 
-  Monitor, 
-  Globe, 
-  Bell, 
-  Shield, 
-  User, 
-  CreditCard, 
-  Mail, 
-  Check,
+import { useState } from "react";
+import {
+  Moon,
+  Sun,
+  Monitor,
+  Globe,
+  Bell,
+  Shield,
   ChevronRight,
   Database,
   Eye,
   Lock,
   Image as ImageIcon,
   Upload as UploadIcon,
-  Trash2
+  Trash2,
+  MapPin,
+  Plus,
+  X
 } from "lucide-react";
-import { motion } from "motion/react";
+import { EXECUTIVE_ENTITY } from "../types";
 
 interface Props {
   theme: 'light' | 'dark' | 'system';
@@ -31,19 +30,25 @@ interface Props {
   onResetData: () => void;
   companyLogo: string | null;
   onCompanyLogoChange: (logo: string | null) => void;
+  regions: string[];
+  onAddRegion: (name: string) => void;
+  onDeleteRegion: (name: string) => void;
 }
 
-export default function SettingsView({ 
-  theme, 
-  onThemeChange, 
-  currency, 
-  onCurrencyChange, 
-  dateFormat, 
+export default function SettingsView({
+  theme,
+  onThemeChange,
+  currency,
+  onCurrencyChange,
+  dateFormat,
   onDateFormatChange,
   onExportData,
   onResetData,
   companyLogo,
-  onCompanyLogoChange
+  onCompanyLogoChange,
+  regions,
+  onAddRegion,
+  onDeleteRegion
 }: Props) {
   const [notifications, setNotifications] = useState({
     lowBalance: true,
@@ -51,6 +56,10 @@ export default function SettingsView({
     reportReady: true,
     weeklySummary: false
   });
+
+  const [newRegionName, setNewRegionName] = useState("");
+  const [confirmDeleteRegion, setConfirmDeleteRegion] = useState<string | null>(null);
+  const [confirmAddRegion, setConfirmAddRegion] = useState(false);
 
   const toggleNotification = (key: keyof typeof notifications) => {
     setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
@@ -71,6 +80,27 @@ export default function SettingsView({
     }
   };
 
+  const handleAddRegion = () => {
+    const trimmed = newRegionName.trim();
+    if (!trimmed) return;
+    if (regions.includes(trimmed) || trimmed === EXECUTIVE_ENTITY) {
+      alert("Region name already exists or is reserved.");
+      return;
+    }
+    setConfirmAddRegion(true);
+  };
+
+  const handleConfirmAdd = () => {
+    onAddRegion(newRegionName.trim());
+    setNewRegionName("");
+    setConfirmAddRegion(false);
+  };
+
+  const handleConfirmDelete = (name: string) => {
+    onDeleteRegion(name);
+    setConfirmDeleteRegion(null);
+  };
+
   return (
     <div className="max-w-4xl mx-auto pb-20">
       <div className="mb-8">
@@ -79,6 +109,119 @@ export default function SettingsView({
       </div>
 
       <div className="space-y-6">
+        {/* Region Management Section */}
+        <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+          <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+            <div className="w-8 h-8 bg-violet-100 dark:bg-violet-900/30 rounded-lg flex items-center justify-center">
+              <MapPin className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-slate-900 dark:text-white">Region Management</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Add or remove regional entities. Executive view cannot be removed.</p>
+            </div>
+          </div>
+          <div className="p-6 space-y-4">
+            {/* Existing regions list */}
+            <div className="space-y-2">
+              {/* Executive — always present, not deletable */}
+              <div className="flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-900/10 rounded-xl border border-emerald-100 dark:border-emerald-900/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center">
+                    <Globe className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">Executive</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">Consolidated view (all regions)</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 px-2 py-1 rounded-md uppercase tracking-wider">
+                  Protected
+                </span>
+              </div>
+
+              {/* Dynamic regions */}
+              {regions.map(region => (
+                <div key={region} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center">
+                      <MapPin className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{region}</p>
+                  </div>
+                  {confirmDeleteRegion === region ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-rose-600 dark:text-rose-400 font-bold">Delete?</span>
+                      <button
+                        onClick={() => handleConfirmDelete(region)}
+                        className="px-2 py-1 bg-rose-600 text-white rounded-md text-[10px] font-bold hover:bg-rose-700 transition-all"
+                      >
+                        Yes
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteRegion(null)}
+                        className="px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-md text-[10px] font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
+                      >
+                        No
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteRegion(region)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Add new region */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={newRegionName}
+                  onChange={(e) => { setNewRegionName(e.target.value); setConfirmAddRegion(false); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleAddRegion(); }}
+                  placeholder="New region name..."
+                  className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 outline-none dark:text-white placeholder:text-slate-400"
+                />
+                {confirmAddRegion ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-violet-600 dark:text-violet-400 font-bold whitespace-nowrap">Add "{newRegionName.trim()}"?</span>
+                    <button
+                      onClick={handleConfirmAdd}
+                      className="px-3 py-2 bg-violet-600 text-white rounded-lg text-[10px] font-bold hover:bg-violet-700 transition-all"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => setConfirmAddRegion(false)}
+                      className="px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
+                    >
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleAddRegion}
+                    disabled={!newRegionName.trim()}
+                    className="px-4 py-2.5 bg-violet-600 text-white rounded-xl text-xs font-bold hover:bg-violet-700 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Region
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <p className="text-[10px] text-slate-400 dark:text-slate-500">
+              Adding a region creates a new dashboard tab, initializes default estimates, and includes it in Executive consolidation. Deleting removes all associated data.
+            </p>
+          </div>
+        </section>
+
         {/* Company Branding Section */}
         <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
           <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
@@ -98,7 +241,7 @@ export default function SettingsView({
                   )}
                 </div>
                 {companyLogo && (
-                  <button 
+                  <button
                     onClick={() => onCompanyLogoChange(null)}
                     className="absolute -top-2 -right-2 w-8 h-8 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
                   >
@@ -118,7 +261,7 @@ export default function SettingsView({
                     <input type="file" accept="image/jpeg,image/jpg" className="hidden" onChange={handleLogoUpload} />
                   </label>
                   {companyLogo && (
-                    <button 
+                    <button
                       onClick={() => onCompanyLogoChange(null)}
                       className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-bold hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-600 transition-all flex items-center gap-2"
                     >
@@ -153,8 +296,8 @@ export default function SettingsView({
                     key={item.id}
                     onClick={() => onThemeChange(item.id as any)}
                     className={`flex flex-col items-center gap-3 p-4 rounded-xl border-2 transition-all ${
-                      theme === item.id 
-                        ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-500/10" 
+                      theme === item.id
+                        ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-500/10"
                         : "border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700 bg-white dark:bg-slate-900"
                     }`}
                   >
@@ -180,7 +323,7 @@ export default function SettingsView({
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Default Currency</label>
-              <select 
+              <select
                 value={currency}
                 onChange={(e) => onCurrencyChange(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none dark:text-white"
@@ -193,7 +336,7 @@ export default function SettingsView({
             </div>
             <div>
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Date Format</label>
-              <select 
+              <select
                 value={dateFormat}
                 onChange={(e) => onDateFormatChange(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none dark:text-white"
@@ -291,7 +434,7 @@ export default function SettingsView({
                 <p className="text-sm font-semibold text-slate-900 dark:text-white">Export System Data</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Download all your projections and settings as JSON</p>
               </div>
-              <button 
+              <button
                 onClick={onExportData}
                 className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
               >
@@ -303,7 +446,7 @@ export default function SettingsView({
                 <p className="text-sm font-semibold text-rose-900 dark:text-rose-400">Reset All Data</p>
                 <p className="text-xs text-rose-600 dark:text-rose-500">Permanently delete all manual overrides and reports</p>
               </div>
-              <button 
+              <button
                 onClick={onResetData}
                 className="px-4 py-2 bg-rose-600 text-white rounded-lg text-xs font-bold hover:bg-rose-700 transition-all"
               >
