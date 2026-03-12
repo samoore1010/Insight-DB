@@ -316,8 +316,8 @@ export default function App() {
   }, [reports, regions]);
 
   const adjustData = (
-    rawData: DailyData[], 
-    estimates: EstimateCategory[], 
+    rawData: DailyData[],
+    estimates: EstimateCategory[],
     overrides: Record<string, Partial<DailyData>> = {},
     region: string,
     initialBalanceOverride?: number,
@@ -326,13 +326,13 @@ export default function App() {
     reportActualsOverride: Record<string, { actualCashIn?: number, actualCashOut?: number }> = {}
   ) => {
     if (rawData.length === 0) return [];
-    
+
     // Calculate starting balance for the first day
     const firstDayRawNet = rawData[0].cashIn - rawData[0].cashOut;
     const firstDayStartingBalance = rawData[0].endingBalance - firstDayRawNet;
-    
+
     let runningBalance = initialBalanceOverride !== undefined ? initialBalanceOverride : firstDayStartingBalance;
-    
+
     return rawData.map((day, index) => {
       const baseOverride = overrides[day.date] || {};
       const reportOverride = reportProjectionOverride[day.date] || {};
@@ -413,7 +413,7 @@ export default function App() {
         });
       }
 
-      // For the current day (index 0), cash in is already factored into the manually entered starting balance
+      // For the current day (today), cash in is already factored into the manually entered starting balance
       // We force it to 0 here to ensure it's removed from all charts, tables, and calendars for today.
       if (index === 0) {
         adjCashIn = 0;
@@ -1192,7 +1192,7 @@ export default function App() {
 
                 <div className="mt-8">
                   <MaximizeWrapper title="Historical Reconciliation">
-                    <ReconciliationTable data={currentData} currency={currency} dateFormat={dateFormat} />
+                    <ReconciliationTable data={currentData} currency={currency} dateFormat={dateFormat} actualsOverrides={reportData.actualsOverrides[currentEntity] || {}} />
                   </MaximizeWrapper>
                 </div>
 

@@ -10,24 +10,53 @@ interface Props {
   isMaximized?: boolean;
   currency?: string;
   dateFormat?: string;
+  actualsOverrides?: Record<string, { actualCashIn?: number; actualCashOut?: number }>;
 }
 
-export default function ReconciliationTable({ 
-  data, 
+export default function ReconciliationTable({
+  data,
   isMaximized = false,
   currency = 'USD',
-  dateFormat = 'MM/DD/YYYY'
+  dateFormat = 'MM/DD/YYYY',
+  actualsOverrides = {}
 }: Props) {
   const [isCollapsed, setIsCollapsed] = useState(!isMaximized);
 
   const formatCurrency = (val: number) => centralizedFormatCurrency(val, currency, true);
   const formatDate = (date: string | Date) => centralizedFormatDate(date, dateFormat);
 
-  // Only show historical data or days with actuals
-  const historicalData = data.filter(row => {
+  // Only show historical data or days with actuals from the main dataset
+  const historicalFromData = data.filter(row => {
     const dayDate = parse(row.date, "M/d/yyyy", new Date());
     return isBefore(dayDate, startOfToday()) || row.actualCashIn !== undefined || row.actualCashOut !== undefined;
-  }).reverse(); // Show most recent first
+  });
+
+  // Build rows for actuals dates that fall BEFORE the generated data range
+  // (e.g. uploaded bank feed for dates in the past that have no generated row)
+  const existingDates = new Set(data.map(d => d.date));
+  const extraRows: DailyData[] = Object.entries(actualsOverrides)
+    .filter(([dateStr]) => {
+      if (existingDates.has(dateStr)) return false;
+      try {
+        const d = parse(dateStr, "M/d/yyyy", new Date());
+        return isBefore(d, startOfToday());
+      } catch { return false; }
+    })
+    .map(([dateStr, vals]) => ({
+      date: dateStr,
+      cashIn: 0, cashOut: 0, netFlow: 0, endingBalance: 0,
+      payroll: 0, apPayments: 0, benefits: 0, otherDisbursements: 0,
+      regionalReceipts: {}, grants: 0, disbursements: [],
+      actualCashIn: vals.actualCashIn,
+      actualCashOut: vals.actualCashOut,
+    }));
+
+  const historicalData = [...historicalFromData, ...extraRows]
+    .sort((a, b) => {
+      const da = parse(a.date, "M/d/yyyy", new Date());
+      const db = parse(b.date, "M/d/yyyy", new Date());
+      return db.getTime() - da.getTime(); // most recent first
+    });
 
   const hasAnyActualIn = historicalData.some(r => r.actualCashIn !== undefined);
   const hasAnyActualOut = historicalData.some(r => r.actualCashOut !== undefined);
