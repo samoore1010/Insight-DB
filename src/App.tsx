@@ -237,12 +237,6 @@ export default function App() {
   // Scroll content to top when switching views or entities
   useEffect(() => {
     mainContentRef.current?.scrollTo(0, 0);
-    // Also reset after a short delay to override any layout shifts from
-    // async-rendering components (charts, animations) on initial load
-    const timer = setTimeout(() => {
-      mainContentRef.current?.scrollTo(0, 0);
-    }, 100);
-    return () => clearTimeout(timer);
   }, [activeView, currentEntity]);
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
