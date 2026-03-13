@@ -121,6 +121,36 @@ export interface Report {
   data?: any;
 }
 
+// ── Report Builder Types ──────────────────────────────────────────
+export type ReportModuleType =
+  | "liquidity-summary"
+  | "cash-flow-chart"
+  | "cash-calendar"
+  | "reconciliation-table"
+  | "variance-chart"
+  | "forecast-table"
+  | "disbursement-estimates"
+  | "regional-matrix"
+  | "variance-risk"
+  | "critical-obligations"
+  | "liquidity-trend";
+
+export interface ReportBlock {
+  id: string;
+  moduleType: ReportModuleType;
+  label: string;
+  timeframe: string;
+  region: string;
+}
+
+export interface SavedReport {
+  id: string;
+  name: string;
+  createdBy: string;
+  createdAt: string;
+  blocks: ReportBlock[];
+}
+
 export type ChangeAction = "create" | "update" | "delete" | "move" | "revert" | "migrate";
 
 export interface ChangelogEntry {
