@@ -990,7 +990,7 @@ export default function ReportBuilder({
                   Print
                 </button>
               </div>
-              <div className="p-5" ref={printRef}>
+              <div className="p-5 bg-white rounded-b-2xl" ref={printRef}>
                 {/* Print header */}
                 <div className="mb-8 pb-6 border-b-2 border-slate-900">
                   <div className="flex items-start justify-between">
@@ -1002,14 +1002,14 @@ export default function ReportBuilder({
                           <BarChart3 className="w-5 h-5 text-white" />
                         </div>
                       )}
-                      <h1 className="text-2xl font-black text-slate-900 dark:text-white">{reportName}</h1>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Insight Treasury</p>
+                      <h1 className="text-2xl font-black text-slate-900">{reportName}</h1>
+                      <p className="text-sm text-slate-500 mt-1">Insight Treasury</p>
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Created By</p>
-                      <p className="text-sm font-bold text-slate-900 dark:text-white">{createdBy}</p>
+                      <p className="text-sm font-bold text-slate-900">{createdBy}</p>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Date</p>
-                      <p className="text-sm font-bold text-slate-900 dark:text-white">{formatDate(new Date())}</p>
+                      <p className="text-sm font-bold text-slate-900">{formatDate(new Date())}</p>
                     </div>
                   </div>
                 </div>
@@ -1018,12 +1018,12 @@ export default function ReportBuilder({
                 {blocks.map((block, idx) => (
                   <div key={block.id} className="report-block-container mb-8">
                     <div className="flex items-center gap-3 mb-3">
-                      <span className="text-[10px] font-black text-slate-400 dark:text-slate-500">{String(idx + 1).padStart(2, "0")}</span>
-                      <h2 className="text-lg font-black text-slate-900 dark:text-white">{block.label}</h2>
-                      <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded text-[9px] font-bold">{block.region}</span>
-                      <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded text-[9px] font-bold">{block.timeframe}</span>
+                      <span className="text-[10px] font-black text-slate-400">{String(idx + 1).padStart(2, "0")}</span>
+                      <h2 className="text-lg font-black text-slate-900">{block.label}</h2>
+                      <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[9px] font-bold">{block.region}</span>
+                      <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-bold">{block.timeframe}</span>
                     </div>
-                    <div className="border border-slate-100 dark:border-slate-800 rounded-xl p-4">
+                    <div className="border border-slate-100 rounded-xl p-4">
                       {renderModule(block)}
                     </div>
                   </div>
