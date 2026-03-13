@@ -7,6 +7,8 @@ const BANK_HOLIDAYS_2026 = [
   "2026-12-25"
 ];
 
+const isWeekday = (date: Date) => !isWeekend(date);
+
 const isBusinessDay = (date: Date) => {
   if (isWeekend(date)) return false;
   const dateStr = format(date, "yyyy-MM-dd");
@@ -29,7 +31,7 @@ export function parseLiquidityData(regions: string[] = DEFAULT_REGIONS): Record<
   while (generated < businessDaysToGenerate) {
     const current = addDays(startDate, i);
     i++;
-    if (!isBusinessDay(current)) continue;
+    if (!isWeekday(current)) continue; // Include bank holidays, only skip weekends
     generated++;
     const dateStr = format(current, "M/d/yyyy");
 
