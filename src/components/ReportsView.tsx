@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo, useEffect } from "react";
-import { Entity, Report, DailyData, ReportSelection } from "../types";
+import { Entity, Report, DailyData, ReportSelection, EstimateCategory } from "../types";
+import ReportBuilder from "./ReportBuilder";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { 
@@ -724,6 +725,8 @@ interface Props {
   companyLogo?: string | null;
   theme?: 'light' | 'dark' | 'system';
   readOnly?: boolean;
+  estimates?: Record<string, EstimateCategory[]>;
+  currentUserName?: string;
 }
 
 export default function ReportsView({
@@ -735,7 +738,9 @@ export default function ReportsView({
   dateFormat = 'MM/DD/YYYY',
   companyLogo = null,
   theme = 'light',
-  readOnly = false
+  readOnly = false,
+  estimates = {},
+  currentUserName = '',
 }: Props) {
   const entityRegions = regions.filter(r => r !== "Executive");
   const [activeRegion, setActiveRegion] = useState<Entity>(regions[0]);
@@ -749,6 +754,7 @@ export default function ReportsView({
   });
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [showReportBuilder, setShowReportBuilder] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handlePrint = (elementId: string) => {
@@ -1193,6 +1199,22 @@ export default function ReportsView({
     }
   };
 
+  if (showReportBuilder) {
+    return (
+      <ReportBuilder
+        regions={regions}
+        allData={(allData as Record<Entity, DailyData[]>) || null}
+        currency={currency}
+        dateFormat={dateFormat}
+        companyLogo={companyLogo}
+        currentUserName={currentUserName}
+        estimates={estimates}
+        onClose={() => setShowReportBuilder(false)}
+        readOnly={readOnly}
+      />
+    );
+  }
+
   return (
     <div className="space-y-8">
       {/* Header Section */}
@@ -1201,8 +1223,16 @@ export default function ReportsView({
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Regional Reporting & Documentation</h2>
           <p className="text-slate-500 dark:text-slate-400 text-sm">Upload revenue projections and export professional regional reports.</p>
         </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowReportBuilder(true)}
+            className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/10"
+          >
+            <Plus className="w-5 h-5" />
+            Build Report
+          </button>
         <div className="relative">
-          <button 
+          <button
             className="flex items-center gap-2 bg-slate-900 dark:bg-slate-800 text-white px-6 py-3 rounded-xl font-semibold hover:bg-slate-800 dark:hover:bg-slate-700 transition-all shadow-lg shadow-slate-900/10"
             onClick={() => setShowExportDropdown(!showExportDropdown)}
           >
@@ -1287,6 +1317,7 @@ export default function ReportsView({
               </>
             )}
           </AnimatePresence>
+        </div>
         </div>
       </div>
 

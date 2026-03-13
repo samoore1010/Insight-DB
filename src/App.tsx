@@ -1690,6 +1690,8 @@ export default function App() {
                 dateFormat={dateFormat}
                 companyLogo={companyLogo}
                 readOnly={isViewOnly}
+                estimates={entityEstimates}
+                currentUserName={currentUser?.displayName || ''}
               />
             ) : activeView === "history" ? (
               <ChangeHistory
