@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
 import { DailyData, DisbursementItem, DisbursementStatus, DisbursementType, Attachment } from "../types";
 import { format, parse, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addDays, setMonth, getMonth, getYear, setYear, isWithinInterval, startOfToday } from "date-fns";
@@ -140,6 +140,7 @@ export default function CashCalendar({
 }: Props) {
   const today = startOfToday();
   const todayStr = format(today, "M/d/yyyy");
+  const isInitialMount = useRef(true);
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
   const [viewDate, setViewDate] = useState(today);
   const [showModal, setShowModal] = useState(false);
@@ -338,6 +339,10 @@ export default function CashCalendar({
   const selectedDayData = data.find(d => d.date === selectedDate);
 
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     if (selectedDate) {
       const element = document.getElementById(`note-${selectedDate}`);
       if (element) {
