@@ -123,6 +123,7 @@ export interface Report {
 
 // ── Report Builder Types ──────────────────────────────────────────
 export type ReportModuleType =
+  | "cover-page"
   | "liquidity-summary"
   | "cash-flow-chart"
   | "cash-calendar"
