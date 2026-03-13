@@ -612,6 +612,20 @@ export default function App() {
         if (override && override.cashIn !== undefined) adjCashIn = override.cashIn;
         
         // Generate disbursements from estimates
+        // Helper: check if a non-business day cycle hit should shift to this business day.
+        // Looks at non-business days immediately after dayDate; if any match the cycle,
+        // this day (the prior business day) receives the estimate.
+        const hasShiftedCycleHit = (dayDate: Date, catStartDate: Date, period: number): boolean => {
+          let checkDate = addDays(dayDate, 1);
+          for (let d = 0; d < 5; d++) { // max 5 consecutive non-business days (long weekends + holiday)
+            if (isBusinessDay(checkDate)) break;
+            const checkDiff = differenceInDays(checkDate, catStartDate);
+            if (checkDiff >= 0 && checkDiff % period === 0) return true;
+            checkDate = addDays(checkDate, 1);
+          }
+          return false;
+        };
+
         estimates.forEach(cat => {
           const totalAmount = cat.baseAmount * (1 + cat.adjustment);
           let amount = 0;
@@ -634,17 +648,28 @@ export default function App() {
                 }
                 break;
               case "Weekly":
-                if (diff % 7 === 0) amount = totalAmount;
+                if (diff % 7 === 0 || hasShiftedCycleHit(dayDate, catStartDate, 7)) amount = totalAmount;
                 break;
               case "Bi-Weekly":
-                if (diff % 14 === 0) amount = totalAmount;
+                if (diff % 14 === 0 || hasShiftedCycleHit(dayDate, catStartDate, 14)) amount = totalAmount;
                 break;
               case "Monthly":
-                if (diff % 30 === 0) amount = totalAmount;
+                if (diff % 30 === 0 || hasShiftedCycleHit(dayDate, catStartDate, 30)) amount = totalAmount;
                 break;
-              case "One-Time":
-                if (diff === 0) amount = totalAmount;
+              case "One-Time": {
+                if (diff === 0) {
+                  amount = totalAmount;
+                } else if (diff < 0) {
+                  // Check if the one-time date is a non-business day and this is the prior business day
+                  let checkDate = addDays(dayDate, 1);
+                  for (let d = 0; d < 5; d++) {
+                    if (isBusinessDay(checkDate)) break;
+                    if (differenceInDays(checkDate, catStartDate) === 0) { amount = totalAmount; break; }
+                    checkDate = addDays(checkDate, 1);
+                  }
+                }
                 break;
+              }
             }
           }
 
