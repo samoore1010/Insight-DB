@@ -245,27 +245,58 @@ export default function ReportBuilder({
   const renderModule = useCallback((block: ReportBlock) => {
     const dataSlice = getDataSlice(block.region, block.timeframe);
     if (!allData) return <div className="p-8 text-center text-slate-400">No data available</div>;
+    const isExec = block.region === "Executive";
 
     switch (block.moduleType) {
       case "liquidity-summary": {
         const stats = calculateStats(dataSlice);
         return (
-          <div className="grid grid-cols-3 gap-4">
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Total Liquidity</p>
-              <p className="text-xl font-black text-slate-900">{formatCurrency(stats.currentLiquidity)}</p>
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Total Liquidity</p>
+                <p className="text-xl font-black text-slate-900">{formatCurrency(stats.currentLiquidity)}</p>
+              </div>
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">14-Day Net Flow</p>
+                <p className={clsx("text-xl font-black", stats.projected14DayNet >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                  {formatCurrency(stats.projected14DayNet)}
+                </p>
+              </div>
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Next Payroll</p>
+                <p className="text-xl font-black text-slate-900">{formatCurrency(stats.nextPayrollAmount)}</p>
+                <p className="text-[10px] text-slate-400 mt-1">{stats.nextPayrollDate || "N/A"}</p>
+              </div>
             </div>
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">14-Day Net Flow</p>
-              <p className={clsx("text-xl font-black", stats.projected14DayNet >= 0 ? "text-emerald-600" : "text-rose-600")}>
-                {formatCurrency(stats.projected14DayNet)}
-              </p>
-            </div>
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Next Payroll</p>
-              <p className="text-xl font-black text-slate-900">{formatCurrency(stats.nextPayrollAmount)}</p>
-              <p className="text-[10px] text-slate-400 mt-1">{stats.nextPayrollDate || "N/A"}</p>
-            </div>
+            {isExec && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200">
+                      <th className="text-left py-1.5 text-[10px] font-bold text-slate-400 uppercase">Region</th>
+                      <th className="text-right py-1.5 text-[10px] font-bold text-slate-400 uppercase">Liquidity</th>
+                      <th className="text-right py-1.5 text-[10px] font-bold text-slate-400 uppercase">14D Net</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {entityRegions.map(r => {
+                      const rd = getDataSlice(r, block.timeframe);
+                      const rStats = calculateStats(rd);
+                      return (
+                        <tr key={r} className="border-b border-slate-50">
+                          <td className="py-1 font-bold text-slate-700">{r}</td>
+                          <td className="py-1 text-right font-mono text-slate-900">{formatCurrency(rStats.currentLiquidity)}</td>
+                          <td className={clsx("py-1 text-right font-mono font-bold", rStats.projected14DayNet >= 0 ? "text-emerald-700" : "text-rose-700")}>
+                            {formatCurrency(rStats.projected14DayNet)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         );
       }
@@ -322,6 +353,17 @@ export default function ReportBuilder({
       }
 
       case "forecast-table": {
+        // For Executive: find top regional contributor per day
+        const getTopRegion = (date: string): string | null => {
+          if (!isExec) return null;
+          let top = { region: "", out: 0 };
+          entityRegions.forEach(r => {
+            const rd = getDataSlice(r, block.timeframe);
+            const match = rd.find(d2 => d2.date === date);
+            if (match && match.cashOut > top.out) top = { region: r, out: match.cashOut };
+          });
+          return top.region || null;
+        };
         return (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -332,20 +374,25 @@ export default function ReportBuilder({
                   <th className="text-right py-2 font-black text-slate-900 uppercase tracking-wider text-[10px]">Projected Out</th>
                   <th className="text-right py-2 font-black text-slate-900 uppercase tracking-wider text-[10px]">Net Flow</th>
                   <th className="text-right py-2 font-black text-slate-900 uppercase tracking-wider text-[10px]">End Balance</th>
+                  {isExec && <th className="text-right py-2 font-black text-slate-900 uppercase tracking-wider text-[10px]">Top Outflow</th>}
                 </tr>
               </thead>
               <tbody>
-                {dataSlice.map((d, i) => (
-                  <tr key={i} className="border-b border-slate-100">
-                    <td className="py-1.5 font-mono text-slate-700">{formatDate(d.date)}</td>
-                    <td className="py-1.5 text-right font-mono text-emerald-700">{formatCurrency(d.cashIn)}</td>
-                    <td className="py-1.5 text-right font-mono text-rose-700">{formatCurrency(d.cashOut)}</td>
-                    <td className={clsx("py-1.5 text-right font-mono font-bold", d.netFlow >= 0 ? "text-emerald-700" : "text-rose-700")}>
-                      {formatCurrency(d.netFlow)}
-                    </td>
-                    <td className="py-1.5 text-right font-mono font-bold text-slate-900">{formatCurrency(d.endingBalance)}</td>
-                  </tr>
-                ))}
+                {dataSlice.map((d, i) => {
+                  const topRegion = getTopRegion(d.date);
+                  return (
+                    <tr key={i} className="border-b border-slate-100">
+                      <td className="py-1.5 font-mono text-slate-700">{formatDate(d.date)}</td>
+                      <td className="py-1.5 text-right font-mono text-emerald-700">{formatCurrency(d.cashIn)}</td>
+                      <td className="py-1.5 text-right font-mono text-rose-700">{formatCurrency(d.cashOut)}</td>
+                      <td className={clsx("py-1.5 text-right font-mono font-bold", d.netFlow >= 0 ? "text-emerald-700" : "text-rose-700")}>
+                        {formatCurrency(d.netFlow)}
+                      </td>
+                      <td className="py-1.5 text-right font-mono font-bold text-slate-900">{formatCurrency(d.endingBalance)}</td>
+                      {isExec && <td className="py-1.5 text-right text-[10px] font-bold text-slate-500">{topRegion || "—"}</td>}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -460,32 +507,70 @@ export default function ReportBuilder({
         if (payrollDays.length === 0) return <p className="text-sm text-slate-400 italic">No payroll obligations in this timeframe.</p>;
         return (
           <div className="space-y-3">
-            {payrollDays.map((d, i) => (
-              <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <div>
-                  <p className="text-sm font-bold text-slate-900">{formatDate(d.date)}</p>
-                  <p className="text-[10px] text-slate-500">Payroll + Benefits</p>
+            {payrollDays.map((d, i) => {
+              // For Executive: find which regions contribute to this date's payroll
+              const regionalBreakdown: { region: string; payroll: number; benefits: number; funded: boolean }[] = [];
+              if (isExec) {
+                entityRegions.forEach(r => {
+                  const rd = getDataSlice(r, block.timeframe);
+                  const match = rd.find(rd2 => rd2.date === d.date);
+                  if (match && match.payroll > 0) {
+                    regionalBreakdown.push({
+                      region: r,
+                      payroll: match.payroll,
+                      benefits: match.benefits,
+                      funded: match.endingBalance >= 0,
+                    });
+                  }
+                });
+              }
+              return (
+                <div key={i} className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">{formatDate(d.date)}</p>
+                      <p className="text-[10px] text-slate-500">Payroll + Benefits</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-black text-slate-900">{formatCurrency(d.payroll + d.benefits)}</p>
+                      <p className={clsx("text-[10px] font-bold", d.endingBalance >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                        {d.endingBalance >= 0 ? "Funded" : "Unfunded"}
+                      </p>
+                    </div>
+                  </div>
+                  {isExec && regionalBreakdown.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-slate-200 space-y-1">
+                      {regionalBreakdown.map((rb) => (
+                        <div key={rb.region} className="flex items-center justify-between text-[10px]">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-600">{rb.region}</span>
+                            <span className={clsx("px-1.5 py-0.5 rounded text-[8px] font-bold", rb.funded ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700")}>
+                              {rb.funded ? "Funded" : "Unfunded"}
+                            </span>
+                          </div>
+                          <span className="font-mono font-bold text-slate-700">{formatCurrency(rb.payroll + rb.benefits)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-black text-slate-900">{formatCurrency(d.payroll + d.benefits)}</p>
-                  <p className={clsx("text-[10px] font-bold", d.endingBalance >= 0 ? "text-emerald-600" : "text-rose-600")}>
-                    {d.endingBalance >= 0 ? "Funded" : "Unfunded"}
-                  </p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         );
       }
 
       case "disbursement-estimates": {
-        const cats = estimates[block.region] || [];
-        if (cats.length === 0) return <p className="text-sm text-slate-400 italic">No estimates configured for {block.region}.</p>;
+        // For Executive: show all regions' estimates grouped
+        const regionsToShow = isExec ? entityRegions : [block.region];
+        const allCats = regionsToShow.flatMap(r => (estimates[r] || []).map(c => ({ ...c, _region: r })));
+        if (allCats.length === 0) return <p className="text-sm text-slate-400 italic">No estimates configured{isExec ? "" : ` for ${block.region}`}.</p>;
         return (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b-2 border-slate-900">
+                  {isExec && <th className="text-left py-2 font-black text-slate-900 uppercase tracking-wider text-[10px]">Region</th>}
                   <th className="text-left py-2 font-black text-slate-900 uppercase tracking-wider text-[10px]">Label</th>
                   <th className="text-right py-2 font-black text-slate-900 uppercase tracking-wider text-[10px]">Base Amount</th>
                   <th className="text-center py-2 font-black text-slate-900 uppercase tracking-wider text-[10px]">Period</th>
@@ -493,8 +578,9 @@ export default function ReportBuilder({
                 </tr>
               </thead>
               <tbody>
-                {cats.map((c) => (
-                  <tr key={c.id} className="border-b border-slate-100">
+                {allCats.map((c) => (
+                  <tr key={`${c._region}-${c.id}`} className="border-b border-slate-100">
+                    {isExec && <td className="py-1.5 font-bold text-blue-700">{c._region}</td>}
                     <td className="py-1.5 font-bold text-slate-900">{c.label}</td>
                     <td className="py-1.5 text-right font-mono text-slate-700">{formatCurrency(c.baseAmount)}</td>
                     <td className="py-1.5 text-center text-slate-500">{c.period}</td>
@@ -523,6 +609,24 @@ export default function ReportBuilder({
               </span>
               <span className="text-xs text-slate-500">Min balance: {formatCurrency(minBal)}</span>
             </div>
+            {isExec && (
+              <div className="flex flex-wrap gap-2">
+                {entityRegions.map(r => {
+                  const rd = getDataSlice(r, block.timeframe);
+                  const rMin = Math.min(...rd.map(d => d.endingBalance));
+                  const rNeg = rMin < 0;
+                  return (
+                    <div key={r} className={clsx(
+                      "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border",
+                      rNeg ? "bg-rose-50 border-rose-200 text-rose-700" : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                    )}>
+                      <span>{r}</span>
+                      <span className="font-mono">{formatCurrency(rMin)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {largeOutflows.length > 0 && (
               <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
                 <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-2">Large Outflows ({largeOutflows.length})</p>
@@ -540,7 +644,30 @@ export default function ReportBuilder({
 
       case "cash-calendar": {
         // Simplified calendar for print — show days with activity
-        const activeDays = dataSlice.filter(d => d.disbursements.length > 0).slice(0, 20);
+        // For Executive: merge all regions' disbursements with region labels
+        let activeDays: { date: string; items: { label: string; amount: number; region?: string }[] }[] = [];
+        if (isExec) {
+          const dateMap: Record<string, { label: string; amount: number; region: string }[]> = {};
+          entityRegions.forEach(r => {
+            const rd = getDataSlice(r, block.timeframe);
+            rd.forEach(d => {
+              d.disbursements.forEach(item => {
+                if (!dateMap[d.date]) dateMap[d.date] = [];
+                dateMap[d.date].push({ label: item.label, amount: item.amount, region: r });
+              });
+            });
+          });
+          activeDays = Object.entries(dateMap)
+            .filter(([, items]) => items.length > 0)
+            .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
+            .slice(0, 20)
+            .map(([date, items]) => ({ date, items }));
+        } else {
+          activeDays = dataSlice
+            .filter(d => d.disbursements.length > 0)
+            .slice(0, 20)
+            .map(d => ({ date: d.date, items: d.disbursements.map(item => ({ label: item.label, amount: item.amount })) }));
+        }
         if (activeDays.length === 0) return <p className="text-sm text-slate-400 italic">No disbursements scheduled.</p>;
         return (
           <div className="space-y-2">
@@ -548,9 +675,12 @@ export default function ReportBuilder({
               <div key={i} className="flex items-start gap-4 p-2 border-b border-slate-100">
                 <div className="text-xs font-mono font-bold text-slate-900 w-20 shrink-0">{formatDate(d.date)}</div>
                 <div className="flex-1 space-y-1">
-                  {d.disbursements.map((item, j) => (
-                    <div key={j} className="flex justify-between text-xs">
-                      <span className="text-slate-700 truncate mr-2">{item.label}</span>
+                  {d.items.map((item, j) => (
+                    <div key={j} className="flex justify-between text-xs gap-2">
+                      <span className="text-slate-700 truncate">
+                        {item.region && <span className="text-blue-600 font-bold mr-1">{item.region}:</span>}
+                        {item.label}
+                      </span>
                       <span className="font-mono font-bold text-slate-900 shrink-0">{formatCurrency(item.amount)}</span>
                     </div>
                   ))}
