@@ -3,7 +3,7 @@ import { motion, AnimatePresence, Reorder } from "motion/react";
 import {
   Plus, X, GripVertical, Printer, Save, FolderOpen, Trash2,
   BarChart3, Table2, LayoutGrid, TrendingUp, Calendar, Shield,
-  Users, Globe, ChevronDown, Clock, FileText, MessageSquare
+  Users, Globe, ChevronDown, Clock, FileText, MessageSquare, BookOpen
 } from "lucide-react";
 import { clsx } from "clsx";
 import { format, startOfToday, addDays, isWeekend, parse, isBefore, isAfter, isSameDay, endOfWeek } from "date-fns";
@@ -21,11 +21,13 @@ interface ModuleDef {
   label: string;
   description: string;
   icon: typeof BarChart3;
-  category: "charts" | "tables" | "summaries";
+  category: "layout" | "charts" | "tables" | "summaries";
   timeframes: string[];
 }
 
 const MODULE_CATALOG: ModuleDef[] = [
+  // Layout
+  { type: "cover-page", label: "Cover Page", description: "Full-page title page with report name, author, date & logo", icon: BookOpen, category: "layout", timeframes: ["N/A"] },
   // Charts
   { type: "cash-flow-chart", label: "Cash Flow Chart", description: "Stacked bar + line chart of inflows, outflows & ending balance", icon: BarChart3, category: "charts", timeframes: ["14D", "13W"] },
   { type: "variance-chart", label: "Variance Chart", description: "Line chart comparing projected vs actual flows", icon: TrendingUp, category: "charts", timeframes: ["7D", "14D", "30D"] },
@@ -44,6 +46,7 @@ const MODULE_CATALOG: ModuleDef[] = [
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
+  layout: "Layout",
   charts: "Charts",
   tables: "Tables",
   summaries: "Summaries",
@@ -206,6 +209,13 @@ export default function ReportBuilder({
       s.pageBreakInside = "avoid";
       s.marginBottom = "1cm";
     });
+    // Cover page gets a page break after it so content starts on a new page
+    cloned.querySelectorAll("[data-cover-page]").forEach(el => {
+      const s = (el as HTMLElement).style;
+      s.breakAfter = "page";
+      s.pageBreakAfter = "always";
+      s.minHeight = "90vh";
+    });
     cloned.querySelectorAll("table").forEach(el => {
       (el as HTMLElement).style.breakInside = "auto";
       (el as HTMLElement).style.pageBreakInside = "auto";
@@ -248,6 +258,37 @@ export default function ReportBuilder({
     const isExec = block.region === "Executive";
 
     switch (block.moduleType) {
+      case "cover-page": {
+        return (
+          <div className="flex flex-col items-center justify-center py-16 text-center" style={{ minHeight: 400 }}>
+            {companyLogo ? (
+              <img src={companyLogo} alt="Logo" className="w-24 h-24 object-contain mb-6" referrerPolicy="no-referrer" />
+            ) : (
+              <div className="w-16 h-16 bg-amber-500 rounded-2xl flex items-center justify-center mb-6">
+                <BarChart3 className="w-8 h-8 text-white" />
+              </div>
+            )}
+            <h1 className="text-4xl font-black text-slate-900 mb-2">{reportName}</h1>
+            <p className="text-sm text-slate-400 mb-10 tracking-widest uppercase">Insight Treasury</p>
+            <div className="w-16 h-px bg-slate-300 mb-10" />
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Prepared By</p>
+              <p className="text-lg font-bold text-slate-700">{createdBy}</p>
+            </div>
+            <div className="mt-4 space-y-1">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date</p>
+              <p className="text-lg font-bold text-slate-700">{formatDate(new Date())}</p>
+            </div>
+            {block.region !== "Executive" && block.region !== "N/A" && (
+              <div className="mt-4 space-y-1">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Region</p>
+                <p className="text-lg font-bold text-slate-700">{block.region}</p>
+              </div>
+            )}
+          </div>
+        );
+      }
+
       case "liquidity-summary": {
         const stats = calculateStats(dataSlice);
         return (
@@ -883,7 +924,7 @@ export default function ReportBuilder({
 
           {/* Module list */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-            {(["charts", "tables", "summaries"] as const).map(cat => {
+            {(["layout", "charts", "tables", "summaries"] as const).map(cat => {
               const items = filteredCatalog.filter(m => m.category === cat);
               if (items.length === 0) return null;
               return (
@@ -991,42 +1032,50 @@ export default function ReportBuilder({
                 </button>
               </div>
               <div className="p-5 bg-white rounded-b-2xl" ref={printRef}>
-                {/* Print header */}
-                <div className="mb-8 pb-6 border-b-2 border-slate-900">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      {companyLogo ? (
-                        <img src={companyLogo} alt="Logo" className="w-16 h-16 object-contain mb-3" referrerPolicy="no-referrer" />
-                      ) : (
-                        <div className="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center mb-3">
-                          <BarChart3 className="w-5 h-5 text-white" />
-                        </div>
-                      )}
-                      <h1 className="text-2xl font-black text-slate-900">{reportName}</h1>
-                      <p className="text-sm text-slate-500 mt-1">Insight Treasury</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Created By</p>
-                      <p className="text-sm font-bold text-slate-900">{createdBy}</p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Date</p>
-                      <p className="text-sm font-bold text-slate-900">{formatDate(new Date())}</p>
+                {/* Print header — hidden when a cover page module is present */}
+                {!blocks.some(b => b.moduleType === "cover-page") && (
+                  <div className="mb-8 pb-6 border-b-2 border-slate-900">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        {companyLogo ? (
+                          <img src={companyLogo} alt="Logo" className="w-16 h-16 object-contain mb-3" referrerPolicy="no-referrer" />
+                        ) : (
+                          <div className="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center mb-3">
+                            <BarChart3 className="w-5 h-5 text-white" />
+                          </div>
+                        )}
+                        <h1 className="text-2xl font-black text-slate-900">{reportName}</h1>
+                        <p className="text-sm text-slate-500 mt-1">Insight Treasury</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Created By</p>
+                        <p className="text-sm font-bold text-slate-900">{createdBy}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Date</p>
+                        <p className="text-sm font-bold text-slate-900">{formatDate(new Date())}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Render blocks in order */}
                 {blocks.map((block, idx) => (
-                  <div key={block.id} className="report-block-container mb-8">
-                    <div className="flex items-center gap-3 mb-3">
-                      <span className="text-[10px] font-black text-slate-400">{String(idx + 1).padStart(2, "0")}</span>
-                      <h2 className="text-lg font-black text-slate-900">{block.label}</h2>
-                      <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[9px] font-bold">{block.region}</span>
-                      <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-bold">{block.timeframe}</span>
-                    </div>
-                    <div className="border border-slate-100 rounded-xl p-4">
+                  block.moduleType === "cover-page" ? (
+                    <div key={block.id} className="report-block-container mb-8 border border-slate-200 rounded-xl overflow-hidden" data-cover-page>
                       {renderModule(block)}
                     </div>
-                  </div>
+                  ) : (
+                    <div key={block.id} className="report-block-container mb-8">
+                      <div className="flex items-center gap-3 mb-3">
+                        <span className="text-[10px] font-black text-slate-400">{String(idx + 1).padStart(2, "0")}</span>
+                        <h2 className="text-lg font-black text-slate-900">{block.label}</h2>
+                        <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[9px] font-bold">{block.region}</span>
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-bold">{block.timeframe}</span>
+                      </div>
+                      <div className="border border-slate-100 rounded-xl p-4">
+                        {renderModule(block)}
+                      </div>
+                    </div>
+                  )
                 ))}
               </div>
             </div>
