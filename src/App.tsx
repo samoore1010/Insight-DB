@@ -612,8 +612,26 @@ export default function App() {
         if (override && override.cashIn !== undefined) adjCashIn = override.cashIn;
         
         // Generate disbursements from estimates
-        // Bank holidays are now included in the data so recurring estimates land on
-        // their natural cycle date. Only Daily estimates skip bank holidays.
+        // Bank holidays are in the data but disbursements that land on a bank holiday
+        // are shifted to the prior business day. The cycle itself is unchanged —
+        // diff is computed against the real calendar so the cycle never breaks.
+        //
+        // Helper: if this day is a business day, check whether any immediately
+        // following bank holidays would trigger a cycle hit. If so, the
+        // disbursement lands here (the prior business day) instead.
+        const hasHolidayCycleHit = (dayDate: Date, catStartDate: Date, period: number): boolean => {
+          let checkDate = addDays(dayDate, 1);
+          for (let d = 0; d < 5; d++) {
+            if (isWeekend(checkDate)) break; // weekends aren't in data, stop
+            if (isBusinessDay(checkDate)) break; // next business day reached, stop
+            // checkDate is a bank holiday weekday
+            const checkDiff = differenceInDays(checkDate, catStartDate);
+            if (checkDiff >= 0 && checkDiff % period === 0) return true;
+            checkDate = addDays(checkDate, 1);
+          }
+          return false;
+        };
+
         estimates.forEach(cat => {
           const totalAmount = cat.baseAmount * (1 + cat.adjustment);
           let amount = 0;
@@ -629,6 +647,8 @@ export default function App() {
           }
 
           if (diff >= 0 && isBeforeEnd) {
+            const onHoliday = !isBusinessDay(dayDate) && !isWeekend(dayDate);
+
             switch (cat.period) {
               case "Daily":
                 // Daily ops don't occur on bank holidays
@@ -637,16 +657,20 @@ export default function App() {
                 }
                 break;
               case "Weekly":
-                if (diff % 7 === 0) amount = totalAmount;
+                if (onHoliday) break; // will be picked up by prior business day
+                if (diff % 7 === 0 || hasHolidayCycleHit(dayDate, catStartDate, 7)) amount = totalAmount;
                 break;
               case "Bi-Weekly":
-                if (diff % 14 === 0) amount = totalAmount;
+                if (onHoliday) break;
+                if (diff % 14 === 0 || hasHolidayCycleHit(dayDate, catStartDate, 14)) amount = totalAmount;
                 break;
               case "Monthly":
-                if (diff % 30 === 0) amount = totalAmount;
+                if (onHoliday) break;
+                if (diff % 30 === 0 || hasHolidayCycleHit(dayDate, catStartDate, 30)) amount = totalAmount;
                 break;
               case "One-Time":
-                if (diff === 0) amount = totalAmount;
+                if (onHoliday) break;
+                if (diff === 0 || hasHolidayCycleHit(dayDate, catStartDate, 1)) amount = totalAmount;
                 break;
             }
           }
