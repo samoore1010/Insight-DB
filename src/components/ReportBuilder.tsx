@@ -3,7 +3,7 @@ import { motion, AnimatePresence, Reorder } from "motion/react";
 import {
   Plus, X, GripVertical, Printer, Save, FolderOpen, Trash2,
   BarChart3, Table2, LayoutGrid, TrendingUp, Calendar, Shield,
-  Users, Globe, ChevronDown, Clock, FileText
+  Users, Globe, ChevronDown, Clock, FileText, MessageSquare
 } from "lucide-react";
 import { clsx } from "clsx";
 import { format, startOfToday, addDays, isWeekend, parse, isBefore, isAfter, isSameDay, endOfWeek } from "date-fns";
@@ -13,6 +13,7 @@ import {
 } from "../types";
 import { formatCurrency as centralizedFormatCurrency, formatDate as centralizedFormatDate } from "../utils/formatters";
 import { calculateStats } from "../data/parser";
+import { generateNarrative } from "./ContextBubble";
 
 // ── Module catalog definition ─────────────────────────────────────
 interface ModuleDef {
@@ -39,6 +40,7 @@ const MODULE_CATALOG: ModuleDef[] = [
   // Summaries
   { type: "liquidity-summary", label: "Liquidity Summary Cards", description: "Current liquidity, 14-day net flow, next payroll", icon: Shield, category: "summaries", timeframes: ["14D"] },
   { type: "variance-risk", label: "Variance & Risk Analysis", description: "Risk exposure badges and high-risk indicators", icon: Shield, category: "summaries", timeframes: ["14D", "30D"] },
+  { type: "context-analysis", label: "Context Analysis", description: "Plain-English narrative summarizing the data", icon: MessageSquare, category: "summaries", timeframes: ["14D", "30D"] },
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -559,10 +561,20 @@ export default function ReportBuilder({
         );
       }
 
+      case "context-analysis": {
+        const ctxStats = calculateStats(dataSlice);
+        const text = generateNarrative(dataSlice, ctxStats, block.region, currency, allData || undefined, regions);
+        return (
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+            <p className="text-sm text-slate-700 leading-relaxed">{text}</p>
+          </div>
+        );
+      }
+
       default:
         return <div className="p-8 text-center text-slate-400">Unknown module type</div>;
     }
-  }, [allData, getDataSlice, formatCurrency, formatDate, entityRegions, estimates]);
+  }, [allData, getDataSlice, formatCurrency, formatDate, entityRegions, estimates, currency, regions]);
 
   // ── UI ────────────────────────────────────────────────────────
   return (

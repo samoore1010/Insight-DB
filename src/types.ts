@@ -133,7 +133,8 @@ export type ReportModuleType =
   | "regional-matrix"
   | "variance-risk"
   | "critical-obligations"
-  | "liquidity-trend";
+  | "liquidity-trend"
+  | "context-analysis";
 
 export interface ReportBlock {
   id: string;

@@ -13,6 +13,7 @@ import MaximizeWrapper from "./components/MaximizeWrapper";
 import SettingsView from "./components/SettingsView";
 import ChangeHistory from "./components/ChangeHistory";
 import LoginPage from "./components/LoginPage";
+import ContextBubble from "./components/ContextBubble";
 import { syncEstimates, syncDisbursements, syncBalances } from "./api/treasury";
 import { LayoutDashboard, Building2, FileText, Settings, Bell, Search, Users, MapPin, Globe, Earth, Car, Building, Landmark, Play, Pause, RotateCcw, Menu, X, History, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -1621,6 +1622,17 @@ export default function App() {
                     readOnly={isViewOnly}
                   />
                 </MaximizeWrapper>
+
+                <div className="mt-8">
+                  <ContextBubble
+                    currentEntity={currentEntity}
+                    currentData={currentData}
+                    stats={stats}
+                    allData={allAdjustedData}
+                    regions={[...(canSeeExecutive ? [EXECUTIVE_ENTITY] : []), ...visibleRegions]}
+                    currency={currency}
+                  />
+                </div>
 
                 <div className="mt-8">
                   <MaximizeWrapper title="Pillar 2: Cash Flow Dynamics (13-Week Rolling)">
