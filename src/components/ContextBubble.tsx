@@ -33,65 +33,53 @@ function generateNarrative(
   currency: string,
   allData?: Record<string, DailyData[]> | null,
   regions?: string[],
-): string {
+): string[] {
   const fmt = (v: number) => centralizedFormatCurrency(v, currency, true);
   const fmtFull = (v: number) => centralizedFormatCurrency(v, currency, false);
   const bd = filterBusinessDays(data);
-  if (bd.length === 0) return "No data available for analysis.";
+  if (bd.length === 0) return ["No data available"];
 
   const currentBal = bd[0]?.endingBalance || 0;
   const net14 = bd.slice(0, 14).reduce((s, d) => s + d.netFlow, 0);
   const minBal14 = Math.min(...bd.slice(0, 14).map(d => d.endingBalance));
   const maxOutflow = bd.slice(0, 14).reduce((max, d) => d.cashOut > max.cashOut ? d : max, bd[0]);
-
-  // Find first negative day
   const negDay = bd.slice(0, 30).find(d => d.endingBalance < 0);
-
-  // Payroll info
   const payrollDays = bd.slice(0, 14).filter(d => d.payroll > 0);
   const unfundedPayrolls = payrollDays.filter(d => d.endingBalance < d.payroll);
-
-  const parts: string[] = [];
-
-  // Headline
   const isExecutive = entity === EXECUTIVE_ENTITY;
-  if (isExecutive) {
-    parts.push(`Consolidated liquidity stands at ${fmtFull(currentBal)}.`);
-  } else {
-    parts.push(`${entity}'s current liquidity is ${fmtFull(currentBal)}.`);
-  }
 
-  // Net flow outlook
-  if (net14 >= 0) {
-    parts.push(`The 14-day net flow outlook is positive at ${fmt(net14)}, indicating healthy cash generation.`);
-  } else {
-    parts.push(`The 14-day net flow is ${fmt(net14)}, meaning outflows exceed inflows over the near term.`);
-  }
+  const bullets: string[] = [];
+
+  // Liquidity
+  bullets.push(`Liquidity: ${fmtFull(currentBal)}`);
+
+  // Net flow
+  bullets.push(`14D Net Flow: ${fmt(net14)} — ${net14 >= 0 ? "positive" : "outflows exceed inflows"}`);
 
   // Largest outflow
   if (maxOutflow.cashOut > 0) {
-    parts.push(`The largest single-day outflow is ${fmt(maxOutflow.cashOut)} on ${maxOutflow.date}.`);
+    bullets.push(`Peak outflow: ${fmt(maxOutflow.cashOut)} on ${maxOutflow.date}`);
   }
 
   // Payroll
   if (payrollDays.length > 0) {
     const totalPayroll = payrollDays.reduce((s, d) => s + d.payroll, 0);
-    parts.push(`${payrollDays.length} payroll event${payrollDays.length > 1 ? "s" : ""} totaling ${fmt(totalPayroll)} ${payrollDays.length > 1 ? "are" : "is"} scheduled in the next 14 days.`);
+    bullets.push(`Payroll: ${payrollDays.length}x totaling ${fmt(totalPayroll)}`);
     if (unfundedPayrolls.length > 0) {
-      parts.push(`Warning: ${unfundedPayrolls.length} payroll date${unfundedPayrolls.length > 1 ? "s" : ""} may be underfunded based on projected balances.`);
+      bullets.push(`${unfundedPayrolls.length} payroll date${unfundedPayrolls.length > 1 ? "s" : ""} may be underfunded`);
     } else {
-      parts.push("All upcoming payrolls appear adequately funded.");
+      bullets.push("All payrolls funded");
     }
   }
 
-  // Negative balance warning
+  // Negative balance
   if (negDay) {
-    parts.push(`Alert: The balance is projected to go negative on ${negDay.date} (${fmtFull(negDay.endingBalance)}).`);
+    bullets.push(`Negative balance projected ${negDay.date} (${fmtFull(negDay.endingBalance)})`);
   } else if (minBal14 > 0) {
-    parts.push(`No negative balance days are projected. Minimum balance over 14 days: ${fmt(minBal14)}.`);
+    bullets.push(`Min balance (14D): ${fmt(minBal14)} — no deficit days`);
   }
 
-  // Executive: regional breakdown
+  // Executive: regional highlights
   if (isExecutive && allData && regions && regions.length > 0) {
     const entityRegions = regions.filter(r => r !== EXECUTIVE_ENTITY);
     const regionSummaries = entityRegions.map(r => {
@@ -103,11 +91,12 @@ function generateNarrative(
     const weakest = regionSummaries.reduce((w, r) => r.net < w.net ? r : w, regionSummaries[0]);
     const strongest = regionSummaries.reduce((s, r) => r.net > s.net ? r : s, regionSummaries[0]);
     if (weakest && strongest && weakest.region !== strongest.region) {
-      parts.push(`Regionally, ${strongest.region} leads with ${fmt(strongest.net)} net flow while ${weakest.region} trails at ${fmt(weakest.net)}.`);
+      bullets.push(`Strongest: ${strongest.region} (${fmt(strongest.net)})`);
+      bullets.push(`Weakest: ${weakest.region} (${fmt(weakest.net)})`);
     }
   }
 
-  return parts.join(" ");
+  return bullets;
 }
 
 // ── Build context string for Gemini ─────────────────────────────
@@ -254,7 +243,7 @@ export default function ContextBubble({
 
       const chat = model.startChat({
         history: [
-          { role: "user", parts: [{ text: `You are a treasury analyst assistant. Here is the current treasury data:\n\n${systemContext}\n\nThe current analysis summary is: ${narrative}\n\nAnswer questions about this data concisely and specifically. Reference actual numbers and dates. Keep responses to 2-4 sentences unless more detail is requested.` }] },
+          { role: "user", parts: [{ text: `You are a treasury analyst assistant. Here is the current treasury data:\n\n${systemContext}\n\nKey findings:\n${narrative.map(b => `- ${b}`).join("\n")}\n\nAnswer questions about this data concisely and specifically. Reference actual numbers and dates. Keep responses to 2-4 sentences unless more detail is requested.` }] },
           { role: "model", parts: [{ text: "I understand the treasury data. I'm ready to answer questions about the cash positions, flows, disbursements, and regional breakdowns. What would you like to know?" }] },
           ...chatHistory,
         ],
@@ -345,9 +334,16 @@ export default function ContextBubble({
         )}
       </div>
 
-      {/* Narrative */}
-      <div className="px-5 py-4">
-        <p className="text-sm text-slate-300 leading-relaxed">{narrative}</p>
+      {/* Narrative bullets */}
+      <div className="px-5 py-3">
+        <ul className="space-y-1.5">
+          {narrative.map((bullet, i) => (
+            <li key={i} className="flex items-start gap-2 text-xs text-slate-300 leading-relaxed">
+              <span className="mt-1.5 w-1 h-1 rounded-full bg-emerald-400 shrink-0" />
+              {bullet}
+            </li>
+          ))}
+        </ul>
       </div>
 
       {/* Follow-up chat */}

@@ -563,10 +563,17 @@ export default function ReportBuilder({
 
       case "context-analysis": {
         const ctxStats = calculateStats(dataSlice);
-        const text = generateNarrative(dataSlice, ctxStats, block.region, currency, allData || undefined, regions);
+        const bullets = generateNarrative(dataSlice, ctxStats, block.region, currency, allData || undefined, regions);
         return (
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-            <p className="text-sm text-slate-700 leading-relaxed">{text}</p>
+            <ul className="space-y-1.5">
+              {bullets.map((b, i) => (
+                <li key={i} className="flex items-start gap-2 text-xs text-slate-700 leading-relaxed">
+                  <span className="mt-1.5 w-1 h-1 rounded-full bg-emerald-500 shrink-0" />
+                  {b}
+                </li>
+              ))}
+            </ul>
           </div>
         );
       }

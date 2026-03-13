@@ -1608,22 +1608,51 @@ export default function App() {
                   </div>
                 </motion.div>
 
-                <MaximizeWrapper title="Pillar 1 & 3: Executive Core & Regional Burn">
-                  <SummaryCards
-                    stats={stats}
-                    currentEntity={currentEntity}
-                    onUpdateBalance={handleUpdateBalance}
-                    onInternalTransfer={handleInternalTransfer}
-                    todaysCashOut={currentData[0]?.cashOut || 0}
-                    manualBalances={manualBalances}
-                    balances={manualBalances[currentEntity] || {}}
-                    currency={currency}
-                    regions={regions}
-                    readOnly={isViewOnly}
-                  />
-                </MaximizeWrapper>
+                <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
+                  {/* Main dashboard column */}
+                  <div className="min-w-0 space-y-8">
+                    <MaximizeWrapper title="Pillar 1 & 3: Executive Core & Regional Burn">
+                      <SummaryCards
+                        stats={stats}
+                        currentEntity={currentEntity}
+                        onUpdateBalance={handleUpdateBalance}
+                        onInternalTransfer={handleInternalTransfer}
+                        todaysCashOut={currentData[0]?.cashOut || 0}
+                        manualBalances={manualBalances}
+                        balances={manualBalances[currentEntity] || {}}
+                        currency={currency}
+                        regions={regions}
+                        readOnly={isViewOnly}
+                      />
+                    </MaximizeWrapper>
 
-                <div className="mt-8">
+                    <MaximizeWrapper title="Pillar 2: Cash Flow Dynamics (13-Week Rolling)">
+                      <LiquidityChart
+                        data={currentData}
+                        forecastDays={forecastDays}
+                        onForecastDaysChange={setForecastDays}
+                        currency={currency}
+                      />
+                    </MaximizeWrapper>
+                  </div>
+
+                  {/* Context Analysis sidebar */}
+                  <div className="hidden xl:block">
+                    <div className="sticky top-6">
+                      <ContextBubble
+                        currentEntity={currentEntity}
+                        currentData={currentData}
+                        stats={stats}
+                        allData={allAdjustedData}
+                        regions={[...(canSeeExecutive ? [EXECUTIVE_ENTITY] : []), ...visibleRegions]}
+                        currency={currency}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Context bubble for smaller screens (below xl) */}
+                <div className="mt-8 xl:hidden">
                   <ContextBubble
                     currentEntity={currentEntity}
                     currentData={currentData}
@@ -1632,17 +1661,6 @@ export default function App() {
                     regions={[...(canSeeExecutive ? [EXECUTIVE_ENTITY] : []), ...visibleRegions]}
                     currency={currency}
                   />
-                </div>
-
-                <div className="mt-8">
-                  <MaximizeWrapper title="Pillar 2: Cash Flow Dynamics (13-Week Rolling)">
-                    <LiquidityChart 
-                      data={currentData} 
-                      forecastDays={forecastDays} 
-                      onForecastDaysChange={setForecastDays}
-                      currency={currency} 
-                    />
-                  </MaximizeWrapper>
                 </div>
 
                 <div className="mt-8">
