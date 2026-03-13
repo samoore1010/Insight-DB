@@ -8,7 +8,14 @@ import crypto from "crypto";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+import fs from "fs";
+
 const dbPath = process.env.DATABASE_PATH || "treasury.db";
+// Ensure the database directory exists (for volume mounts like /data)
+const dbDir = path.dirname(dbPath);
+if (dbDir !== "." && !fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
 const db = new Database(dbPath);
 console.log(`Using database at: ${dbPath}`);
 
